@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.myrnchef.SystemAssistant</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>System Assistant</name>
+  <summary>System maintenance and post-install setup utility</summary>
+  <description>
+    <p>
+      A native GTK 4 and Libadwaita utility to update system packages and Flatpaks,
+      mute the hardware PC speaker module, and install essential desktop tools.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.myrnchef.SystemAssistant.desktop</launchable>
+  <url type="homepage">https://github.com/myrnchef/system-assistant</url>
+  <developer id="io.github.myrnchef">
+    <name>Faisal Almalahy</name>
+  </developer>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main window showing system maintenance toggles</caption>
+      <image>https://raw.githubusercontent.com/myrnchef/system-assistant/main/Pic1.png</image>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="1.0.0" date="2026-11-21">
+      <description>
+        <p>Initial release.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1" />
+</component>
