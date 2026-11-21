@@ -2,7 +2,7 @@
 
 A native GTK 4 and Libadwaita system maintenance and post-install setup utility for Linux desktops.
 
-![System Assistant Screenshot](Pic1.png)
+![System Assistant Screenshot](Pic1.png?v=1.4.0)
 
 ## Features
 - **Update System & Flatpak Apps:** Syncs native repositories, upgrades system packages (`dnf`, `apt`, `pacman`), and updates installed Flatpaks.
