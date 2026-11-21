@@ -402,16 +402,18 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         self.row_ubuntu_flatpak = None
         if self.distro in ("ubuntu", "debian"):
             self.row_ubuntu_codecs = self.create_switch_row(
-                "Ubuntu Restricted Extras & Codecs",
-                "Install multimedia codecs, H.264/AAC playback, and core fonts",
-                "multimedia-player-symbolic",
+                title="Ubuntu Restricted Extras &amp; Codecs",
+                subtitle="Install multimedia codecs, H.264/AAC playback, and core fonts",
+                icon_name="multimedia-player-symbolic",
+                active=False,
             )
             tweaks_group.add(self.row_ubuntu_codecs)
 
             self.row_ubuntu_flatpak = self.create_switch_row(
-                "Setup Flatpak & Flathub",
-                "Install Flatpak and enable the Flathub app repository",
-                "system-software-install-symbolic",
+                title="Setup Flatpak &amp; Flathub",
+                subtitle="Install Flatpak and enable the Flathub app repository",
+                icon_name="system-software-install-symbolic",
+                active=False,
             )
             tweaks_group.add(self.row_ubuntu_flatpak)
 
@@ -466,9 +468,14 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         )
         software_group.add(self.row_spotify)
 
+        brave_sub = (
+            "Configure Brave APT repository and install browser"
+            if self.distro in ("ubuntu", "debian")
+            else "Configure Brave RPM repository and install browser"
+        )
         self.row_brave = self.create_switch_row(
             title="Brave Browser",
-            subtitle="Configure Brave RPM repository and install browser",
+            subtitle=brave_sub,
             icon_name="web-browser-symbolic",
             active=False,
         )
