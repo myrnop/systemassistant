@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import platform
+import re
 import shutil
 import subprocess
 import threading
@@ -8,7 +9,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gtk, Pango
+from gi.repository import Adw, Gdk, GLib, Gtk, Pango
 
 IN_FLATPAK = os.path.exists("/.flatpak-info")
 
@@ -28,6 +29,45 @@ def host_which(binary):
         )
         return res.returncode == 0
     return shutil.which(binary) is not None
+
+
+def host_flatpak_installed(app_id):
+    if not host_which("flatpak"):
+        return False
+    res = subprocess.run(
+        wrap_host_cmd(["flatpak", "info", app_id]),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    return res.returncode == 0
+
+
+def host_file_exists(path):
+    if IN_FLATPAK:
+        host_path = os.path.join("/run/host", path.lstrip("/"))
+        if os.path.exists(host_path):
+            return True
+        res = subprocess.run(
+            ["flatpak-spawn", "--host", "test", "-e", path],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        return res.returncode == 0
+    return os.path.exists(path)
+
+
+def host_gsetting_get(schema, key):
+    if not host_which("gsettings"):
+        return ""
+    try:
+        out = subprocess.check_output(
+            wrap_host_cmd(["gsettings", "get", schema, key]),
+            text=True,
+            stderr=subprocess.DEVNULL,
+        )
+        return out.strip().strip("'\"")
+    except Exception:
+        return ""
 
 
 def get_os_release_path():
@@ -54,6 +94,36 @@ def get_distro():
                 if line.startswith("ID="):
                     return line.strip().split("=")[1].strip('"').lower()
     return "unknown"
+
+
+def get_uptime_str():
+    try:
+        with open("/proc/uptime") as f:
+            seconds = int(float(f.read().split()[0]))
+        days, rem = divmod(seconds, 86400)
+        hours, rem = divmod(rem, 3600)
+        minutes, _ = divmod(rem, 60)
+        parts = []
+        if days > 0:
+            parts.append(f"{days}d")
+        if hours > 0:
+            parts.append(f"{hours}h")
+        parts.append(f"{minutes}m")
+        return " ".join(parts)
+    except Exception:
+        return "Unknown"
+
+
+def get_storage_str():
+    try:
+        target = "/run/host" if (IN_FLATPAK and os.path.exists("/run/host")) else "/"
+        usage = shutil.disk_usage(target)
+        used_gb = round(usage.used / (1024**3), 1)
+        total_gb = round(usage.total / (1024**3), 1)
+        pct = round((usage.used / usage.total) * 100)
+        return f"{used_gb} GB / {total_gb} GB ({pct}% used)"
+    except Exception:
+        return "Unknown"
 
 
 def get_hardware_info():
@@ -106,10 +176,15 @@ def get_hardware_info():
         for line in out.splitlines():
             if "VGA compatible controller" in line or "3D controller" in line:
                 gpu_raw = line.split(":", 2)[-1].strip()
-                if "[" in gpu_raw and "]" in gpu_raw:
-                    gpu = gpu_raw.split("[")[-1].split("]")[0]
+                gpu_raw = re.sub(r"\s*\(rev [0-9a-fA-F]+\)\s*$", "", gpu_raw)
+                brackets = re.findall(r"\[([^\]]+)\]", gpu_raw)
+                meaningful = [b for b in brackets if b not in ("AMD/ATI", "Intel", "NVIDIA")]
+                if meaningful:
+                    gpu = meaningful[-1]
+                elif brackets:
+                    gpu = brackets[-1]
                 else:
-                    gpu = gpu_raw.split("(rev")[0].strip()
+                    gpu = gpu_raw
                 break
     except Exception:
         pass
@@ -119,6 +194,8 @@ def get_hardware_info():
         "cpu": cpu,
         "ram": ram,
         "gpu": gpu,
+        "storage": get_storage_str(),
+        "uptime": get_uptime_str(),
     }
 
 
@@ -128,7 +205,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             application=app,
             title="System Assistant",
             default_width=640,
-            default_height=680,
+            default_height=710,
         )
         self.distro = get_distro()
         self.pretty_os = get_os_pretty_name()
@@ -164,8 +241,8 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             orientation=Gtk.Orientation.VERTICAL,
             spacing=8,
             halign=Gtk.Align.CENTER,
-            margin_top=6,
-            margin_bottom=6,
+            margin_top=4,
+            margin_bottom=4,
         )
 
         local_icon = os.path.join(
@@ -176,7 +253,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             hero_icon = Gtk.Image.new_from_file(local_icon)
         else:
             hero_icon = Gtk.Image.new_from_icon_name("io.github.myrnop.SystemAssistant")
-        hero_icon.set_pixel_size(76)
+        hero_icon.set_pixel_size(72)
 
         hero_title = Gtk.Label(label="System Assistant")
         hero_title.add_css_class("title-1")
@@ -191,14 +268,26 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         hero_group.add(hero_box)
         overview_page.add(hero_group)
 
-        hw_group = Adw.PreferencesGroup(title="System Hardware")
+        hw_group = Adw.PreferencesGroup(title="System Hardware &amp; Status")
+        refresh_btn = Gtk.Button(
+            icon_name="view-refresh-symbolic",
+            tooltip_text="Refresh System Status",
+            valign=Gtk.Align.CENTER,
+        )
+        refresh_btn.add_css_class("flat")
+        refresh_btn.connect("clicked", self.on_refresh_stats_clicked)
+        hw_group.set_header_suffix(refresh_btn)
+
+        self.hw_labels = {}
         hw_rows = [
-            ("Device", self.hw["model"], "computer-symbolic"),
-            ("Processor", self.hw["cpu"], "applications-electronics-symbolic"),
-            ("Memory", self.hw["ram"], "drive-harddisk-symbolic"),
-            ("Graphics", self.hw["gpu"], "video-display-symbolic"),
+            ("device", "Device", self.hw["model"], "computer-symbolic"),
+            ("cpu", "Processor", self.hw["cpu"], "applications-electronics-symbolic"),
+            ("ram", "Memory", self.hw["ram"], "drive-harddisk-symbolic"),
+            ("gpu", "Graphics", self.hw["gpu"], "video-display-symbolic"),
+            ("storage", "Root Storage", self.hw["storage"], "drive-multidisk-symbolic"),
+            ("uptime", "Uptime", self.hw["uptime"], "preferences-system-time-symbolic"),
         ]
-        for label_text, value_text, icon_name in hw_rows:
+        for key, label_text, value_text, icon_name in hw_rows:
             row = Adw.ActionRow(title=label_text)
             row.add_prefix(Gtk.Image.new_from_icon_name(icon_name))
             val_label = Gtk.Label(label=value_text)
@@ -207,6 +296,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             val_label.set_max_width_chars(38)
             row.add_suffix(val_label)
             hw_group.add(row)
+            self.hw_labels[key] = val_label
 
         overview_page.add(hw_group)
         self.stack.add_titled_with_icon(
@@ -258,6 +348,22 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             active=False,
         )
         hw_tweaks_group.add(self.row_pcspkr)
+
+        self.row_power_profiles = self.create_switch_row(
+            title="Power Profiles Daemon",
+            subtitle="Install and enable GNOME power mode switching (Balanced / Performance)",
+            icon_name="battery-good-symbolic",
+            active=False,
+        )
+        hw_tweaks_group.add(self.row_power_profiles)
+
+        self.row_autocpufreq = self.create_switch_row(
+            title="auto-cpufreq Optimizer",
+            subtitle="Install and enable automatic CPU speed &amp; power optimization",
+            icon_name="preferences-system-power-symbolic",
+            active=False,
+        )
+        hw_tweaks_group.add(self.row_autocpufreq)
         maint_page.add(hw_tweaks_group)
 
         self.stack.add_titled_with_icon(
@@ -295,7 +401,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         tweaks_group.add(self.row_win_buttons)
         apps_page.add(tweaks_group)
 
-        software_group = Adw.PreferencesGroup(title="Essential Applications")
+        software_group = Adw.PreferencesGroup(title="Essential Applications &amp; Tools")
         self.row_tweaks = self.create_switch_row(
             title="GNOME Tweaks &amp; Extensions",
             subtitle="Install gnome-tweaks and Extension Manager",
@@ -303,6 +409,14 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             active=False,
         )
         software_group.add(self.row_tweaks)
+
+        self.row_dev_tools = self.create_switch_row(
+            title="Developer CLI Essentials",
+            subtitle="Install Git, GitHub CLI (gh), Python pip, curl, and wget",
+            icon_name="utilities-terminal-symbolic",
+            active=False,
+        )
+        software_group.add(self.row_dev_tools)
 
         self.row_spotify = self.create_switch_row(
             title="Spotify",
@@ -362,6 +476,15 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             Gtk.Image.new_from_icon_name("utilities-terminal-symbolic")
         )
 
+        copy_btn = Gtk.Button(
+            icon_name="edit-copy-symbolic",
+            tooltip_text="Copy Log to Clipboard",
+            valign=Gtk.Align.CENTER,
+        )
+        copy_btn.add_css_class("flat")
+        copy_btn.connect("clicked", self.on_copy_log_clicked)
+        self.log_expander.add_suffix(copy_btn)
+
         self.log_buffer = Gtk.TextBuffer()
         self.log_view = Gtk.TextView(
             buffer=self.log_buffer,
@@ -396,13 +519,122 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         self.toast_overlay.set_child(toolbar_view)
         self.set_content(self.toast_overlay)
 
+        self.refresh_detected_states()
+
+    def on_refresh_stats_clicked(self, button):
+        self.hw_labels["storage"].set_label(get_storage_str())
+        self.hw_labels["uptime"].set_label(get_uptime_str())
+        self.refresh_detected_states()
+        self.show_toast("Refreshed system status")
+
+    def refresh_detected_states(self):
+        def _detect():
+            states = {
+                "pcspkr": host_file_exists("/etc/modprobe.d/blacklist-pcspkr.conf"),
+                "power_profiles": host_which("powerprofilesctl"),
+                "autocpufreq": host_which("auto-cpufreq"),
+                "rpmfusion": host_file_exists("/etc/yum.repos.d/rpmfusion-free.repo"),
+                "adw_gtk3": "adw-gtk3" in host_gsetting_get("org.gnome.desktop.interface", "gtk-theme"),
+                "win_buttons": "minimize" in host_gsetting_get("org.gnome.desktop.wm.preferences", "button-layout"),
+                "tweaks": host_which("gnome-tweaks"),
+                "dev_tools": host_which("git") and host_which("gh"),
+                "spotify": host_flatpak_installed("com.spotify.Client"),
+                "brave": host_which("brave-browser"),
+            }
+
+            def _apply():
+                self.set_row_badge(
+                    self.row_pcspkr,
+                    "Unload and blacklist pcspkr &amp; snd_pcsp kernel modules",
+                    states["pcspkr"],
+                    "Active",
+                )
+                self.set_row_badge(
+                    self.row_power_profiles,
+                    "Install and enable GNOME power mode switching (Balanced / Performance)",
+                    states["power_profiles"],
+                    "Installed",
+                )
+                self.set_row_badge(
+                    self.row_autocpufreq,
+                    "Install and enable automatic CPU speed &amp; power optimization",
+                    states["autocpufreq"],
+                    "Installed",
+                )
+                if self.row_rpmfusion:
+                    self.set_row_badge(
+                        self.row_rpmfusion,
+                        "Enable RPM Fusion Free/Nonfree, OpenH264, and media codecs",
+                        states["rpmfusion"],
+                        "Enabled",
+                    )
+                self.set_row_badge(
+                    self.row_adw_gtk3,
+                    "Install adw-gtk3 so legacy GTK3 apps match Libadwaita",
+                    states["adw_gtk3"],
+                    "Active",
+                )
+                self.set_row_badge(
+                    self.row_win_buttons,
+                    "Enable minimize and maximize controls on GNOME titlebars",
+                    states["win_buttons"],
+                    "Active",
+                )
+                self.set_row_badge(
+                    self.row_tweaks,
+                    "Install gnome-tweaks and Extension Manager",
+                    states["tweaks"],
+                    "Installed",
+                )
+                self.set_row_badge(
+                    self.row_dev_tools,
+                    "Install Git, GitHub CLI (gh), Python pip, curl, and wget",
+                    states["dev_tools"],
+                    "Installed",
+                )
+                self.set_row_badge(
+                    self.row_spotify,
+                    "Install official Spotify client via Flathub",
+                    states["spotify"],
+                    "Installed",
+                )
+                self.set_row_badge(
+                    self.row_brave,
+                    "Configure Brave RPM repository and install browser",
+                    states["brave"],
+                    "Installed",
+                )
+                return False
+
+            GLib.idle_add(_apply)
+
+        threading.Thread(target=_detect, daemon=True).start()
+
+    def set_row_badge(self, row, base_subtitle, is_done, badge_text):
+        if is_done:
+            row.set_subtitle(f"{base_subtitle}  •  ✓ {badge_text}")
+        else:
+            row.set_subtitle(base_subtitle)
+
+    def on_copy_log_clicked(self, button):
+        start_iter = self.log_buffer.get_start_iter()
+        end_iter = self.log_buffer.get_end_iter()
+        text = self.log_buffer.get_text(start_iter, end_iter, False).strip()
+        if not text:
+            self.show_toast("Log is empty")
+            return
+        display = Gdk.Display.get_default()
+        if display:
+            display.get_clipboard().set(text)
+            self.show_toast("Copied task output log to clipboard")
+
     def on_about_clicked(self, button):
         about = Adw.AboutWindow(
             transient_for=self,
             application_name="System Assistant",
             application_icon="io.github.myrnop.SystemAssistant",
             developer_name="MyrnChef",
-            version="1.2.0",
+            version="1.4.0",
             comments="Made with ❤️ by MyrnChef\n\nA native GTK 4 and Libadwaita system maintenance and post-install setup utility for Linux desktops.",
             website="https://github.com/myrnop/systemassistant",
             issue_url="https://github.com/myrnop/systemassistant/issues",
@@ -457,10 +689,13 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             "pkg_clean": self.row_pkg_clean.get_active(),
             "journal_clean": self.row_journal_clean.get_active(),
             "pcspkr": self.row_pcspkr.get_active(),
+            "power_profiles": self.row_power_profiles.get_active(),
+            "autocpufreq": self.row_autocpufreq.get_active(),
             "rpmfusion": self.row_rpmfusion.get_active() if self.row_rpmfusion else False,
             "adw_gtk3": self.row_adw_gtk3.get_active(),
             "win_buttons": self.row_win_buttons.get_active(),
             "tweaks": self.row_tweaks.get_active(),
+            "dev_tools": self.row_dev_tools.get_active(),
             "spotify": self.row_spotify.get_active(),
             "brave": self.row_brave.get_active(),
         }
@@ -484,9 +719,12 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 or tasks["pkg_clean"]
                 or tasks["journal_clean"]
                 or tasks["pcspkr"]
+                or tasks["power_profiles"]
+                or tasks["autocpufreq"]
                 or (tasks["rpmfusion"] and self.distro == "fedora")
                 or (tasks["adw_gtk3"] and self.distro in ["fedora", "arch"])
                 or (tasks["tweaks"] and not host_which("gnome-tweaks"))
+                or tasks["dev_tools"]
                 or (tasks["brave"] and not host_which("brave-browser"))
             )
 
@@ -515,6 +753,29 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 root_commands.append("modprobe -r pcspkr snd_pcsp 2>/dev/null || true")
                 root_commands.append(
                     "printf 'blacklist pcspkr\\nblacklist snd_pcsp\\n' > /etc/modprobe.d/blacklist-pcspkr.conf"
+                )
+
+            if tasks["power_profiles"]:
+                if self.distro in ["ubuntu", "debian"]:
+                    root_commands.append("apt install -y power-profiles-daemon")
+                elif self.distro == "fedora":
+                    root_commands.append("dnf install -y power-profiles-daemon")
+                elif self.distro == "arch":
+                    root_commands.append("pacman -S --noconfirm power-profiles-daemon")
+                root_commands.append("systemctl enable --now power-profiles-daemon")
+
+            if tasks["autocpufreq"]:
+                if self.distro in ["ubuntu", "debian"]:
+                    root_commands.append("apt install -y git")
+                elif self.distro == "fedora":
+                    root_commands.append("dnf install -y git")
+                elif self.distro == "arch":
+                    root_commands.append("pacman -S --noconfirm git")
+                root_commands.append(
+                    "rm -rf /tmp/auto-cpufreq && "
+                    "git clone --depth=1 https://github.com/AdnanHodzic/auto-cpufreq.git /tmp/auto-cpufreq && "
+                    "cd /tmp/auto-cpufreq && ./auto-cpufreq-installer --install && "
+                    "rm -rf /tmp/auto-cpufreq && auto-cpufreq --install"
                 )
 
             if tasks["rpmfusion"] and self.distro == "fedora":
@@ -547,6 +808,20 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     )
                 elif self.distro == "arch":
                     root_commands.append("pacman -S --noconfirm gnome-tweaks")
+
+            if tasks["dev_tools"]:
+                if self.distro in ["ubuntu", "debian"]:
+                    root_commands.append(
+                        "apt install -y git gh python3-pip curl wget"
+                    )
+                elif self.distro == "fedora":
+                    root_commands.append(
+                        "dnf install -y git gh python3-pip curl wget"
+                    )
+                elif self.distro == "arch":
+                    root_commands.append(
+                        "pacman -S --noconfirm git github-cli python-pip curl wget"
+                    )
 
             if (
                 tasks["brave"]
@@ -614,6 +889,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
             self.log("\nAll selected tasks completed successfully!")
             self.show_toast("All selected tasks completed!")
+            self.hw_labels["storage"].set_label(get_storage_str())
+            self.hw_labels["uptime"].set_label(get_uptime_str())
+            self.refresh_detected_states()
 
         except subprocess.CalledProcessError as e:
             self.log(f"\nError: Command failed with exit code {e.returncode}")
