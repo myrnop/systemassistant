@@ -400,6 +400,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         self.row_rpmfusion = None
         self.row_ubuntu_codecs = None
         self.row_ubuntu_flatpak = None
+        self.row_ubuntu_firefox = None
+        self.row_ubuntu_nala_appimage = None
+        self.row_debian_repos = None
         if self.distro in ("ubuntu", "debian"):
             self.row_ubuntu_codecs = self.create_switch_row(
                 title="Ubuntu Restricted Extras &amp; Codecs",
@@ -416,6 +419,31 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 active=False,
             )
             tweaks_group.add(self.row_ubuntu_flatpak)
+
+            self.row_ubuntu_firefox = self.create_switch_row(
+                title="Official Mozilla Firefox (.deb)",
+                subtitle="Replace Firefox Snap with Mozilla's native APT package",
+                icon_name="web-browser-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_ubuntu_firefox)
+
+            self.row_ubuntu_nala_appimage = self.create_switch_row(
+                title="Nala &amp; AppImage Support",
+                subtitle="Install faster Nala APT frontend and FUSE 2 runtime for AppImages",
+                icon_name="utilities-terminal-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_ubuntu_nala_appimage)
+
+        if self.distro == "debian":
+            self.row_debian_repos = self.create_switch_row(
+                title="Debian Contrib &amp; Non-Free Firmware",
+                subtitle="Enable contrib, non-free, and non-free-firmware repositories",
+                icon_name="system-software-install-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_debian_repos)
 
         if self.distro == "fedora":
             self.row_rpmfusion = self.create_switch_row(
@@ -581,6 +609,27 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 "power_profiles": host_which("powerprofilesctl"),
                 "autocpufreq": host_which("auto-cpufreq"),
                 "rpmfusion": host_file_exists("/etc/yum.repos.d/rpmfusion-free.repo"),
+                "ubuntu_codecs": host_file_exists("/usr/share/doc/ubuntu-restricted-extras/copyright"),
+                "ubuntu_flatpak": bool(host_which("flatpak")) and (
+                    host_file_exists("/var/lib/flatpak/repo/flathub.trustedkeys.gpg")
+                    or host_file_exists("/var/lib/flatpak/repo/config")
+                ),
+                "ubuntu_firefox": host_file_exists("/etc/apt/sources.list.d/mozilla.list") and bool(host_which("firefox")),
+                "debian_repos": (
+                    (
+                        host_file_exists("/etc/apt/sources.list.d/debian.sources")
+                        and "non-free-firmware" in open("/run/host/etc/apt/sources.list.d/debian.sources" if os.path.exists("/run/host/etc/apt/sources.list.d/debian.sources") else "/etc/apt/sources.list.d/debian.sources").read()
+                    )
+                    or (
+                        host_file_exists("/etc/apt/sources.list")
+                        and "non-free-firmware" in open("/run/host/etc/apt/sources.list" if os.path.exists("/run/host/etc/apt/sources.list") else "/etc/apt/sources.list").read()
+                    )
+                ) if self.distro == "debian" else False,
+                "ubuntu_nala_appimage": bool(host_which("nala")) and (
+                    host_file_exists("/usr/lib/x86_64-linux-gnu/libfuse.so.2")
+                    or host_file_exists("/usr/lib/aarch64-linux-gnu/libfuse.so.2")
+                    or host_file_exists("/lib/x86_64-linux-gnu/libfuse.so.2")
+                ),
                 "adw_gtk3": "adw-gtk3" in host_gsetting_get("org.gnome.desktop.interface", "gtk-theme"),
                 "win_buttons": "minimize" in host_gsetting_get("org.gnome.desktop.wm.preferences", "button-layout"),
                 "tweaks": host_which("gnome-tweaks"),
@@ -613,6 +662,44 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                         self.row_rpmfusion,
                         "Enable RPM Fusion Free/Nonfree, OpenH264, and media codecs",
                         states["rpmfusion"],
+                        "Enabled",
+                    )
+                if self.row_ubuntu_codecs:
+                    self.set_row_badge(
+                        self.row_ubuntu_codecs,
+                        "Install multimedia codecs, H.264/AAC playback, and core fonts",
+                        states["ubuntu_codecs"],
+                        "Installed",
+                    )
+                if self.row_ubuntu_flatpak:
+                    self.set_row_badge(
+                        self.row_ubuntu_flatpak,
+                    self.row_ubuntu_firefox,
+                    self.row_ubuntu_nala_appimage,
+                    self.row_debian_repos,
+                        "Install Flatpak and enable the Flathub app repository",
+                        states["ubuntu_flatpak"],
+                        "Active",
+                    )
+                if self.row_ubuntu_firefox:
+                    self.set_row_badge(
+                        self.row_ubuntu_firefox,
+                        "Replace Firefox Snap with Mozilla's native APT package",
+                        states["ubuntu_firefox"],
+                        "Installed",
+                    )
+                if self.row_ubuntu_nala_appimage:
+                    self.set_row_badge(
+                        self.row_ubuntu_nala_appimage,
+                        "Install faster Nala APT frontend and FUSE 2 runtime for AppImages",
+                        states["ubuntu_nala_appimage"],
+                        "Installed",
+                    )
+                if self.row_debian_repos:
+                    self.set_row_badge(
+                        self.row_debian_repos,
+                        "Enable contrib, non-free, and non-free-firmware repositories",
+                        states["debian_repos"],
                         "Enabled",
                     )
                 self.set_row_badge(
@@ -757,6 +844,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             "rpmfusion": self.row_rpmfusion.get_active() if self.row_rpmfusion else False,
             "ubuntu_codecs": self.row_ubuntu_codecs.get_active() if self.row_ubuntu_codecs else False,
             "ubuntu_flatpak": self.row_ubuntu_flatpak.get_active() if self.row_ubuntu_flatpak else False,
+            "ubuntu_firefox": self.row_ubuntu_firefox.get_active() if self.row_ubuntu_firefox else False,
+            "ubuntu_nala_appimage": self.row_ubuntu_nala_appimage.get_active() if self.row_ubuntu_nala_appimage else False,
+            "debian_repos": self.row_debian_repos.get_active() if self.row_debian_repos else False,
             "adw_gtk3": self.row_adw_gtk3.get_active(),
             "win_buttons": self.row_win_buttons.get_active(),
             "tweaks": self.row_tweaks.get_active(),
@@ -789,6 +879,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 or (tasks["rpmfusion"] and self.distro == "fedora")
                 or (tasks["ubuntu_codecs"] and self.distro in ["ubuntu", "debian"])
                 or (tasks["ubuntu_flatpak"] and self.distro in ["ubuntu", "debian"])
+                or (tasks["ubuntu_firefox"] and self.distro in ["ubuntu", "debian"])
+                or (tasks["ubuntu_nala_appimage"] and self.distro in ["ubuntu", "debian"])
+                or (tasks["debian_repos"] and self.distro == "debian")
                 or (tasks["adw_gtk3"] and self.distro in ["fedora", "arch"])
                 or (tasks["tweaks"] and not host_which("gnome-tweaks"))
                 or tasks["dev_tools"]
@@ -861,6 +954,43 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 )
                 root_commands.append(
                     "flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo"
+                )
+
+            if tasks["ubuntu_firefox"] and self.distro in ["ubuntu", "debian"]:
+                root_commands.append("command -v snap >/dev/null 2>&1 && snap remove firefox 2>/dev/null || true")
+                root_commands.append("install -d -m 0755 /etc/apt/keyrings")
+                root_commands.append("DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y wget")
+                root_commands.append(
+                    "wget -q https://packages.mozilla.org/apt/repo-signing-key.gpg -O- | "
+                    "tee /etc/apt/keyrings/packages.mozilla.org.asc > /dev/null"
+                )
+                root_commands.append(
+                    "echo 'deb [signed-by=/etc/apt/keyrings/packages.mozilla.org.asc] "
+                    "https://packages.mozilla.org/apt mozilla main' > /etc/apt/sources.list.d/mozilla.list"
+                )
+                root_commands.append(
+                    "printf 'Package: *\nPin: origin packages.mozilla.org\nPin-Priority: 1000\n' > /etc/apt/preferences.d/mozilla"
+                )
+                root_commands.append(
+                    "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                    "DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades firefox"
+                )
+
+            if tasks["ubuntu_nala_appimage"] and self.distro in ["ubuntu", "debian"]:
+                root_commands.append(
+                    "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                    "DEBIAN_FRONTEND=noninteractive apt-get install -y nala && "
+                    "(DEBIAN_FRONTEND=noninteractive apt-get install -y libfuse2t64 || "
+                    "DEBIAN_FRONTEND=noninteractive apt-get install -y libfuse2)"
+                )
+
+            if tasks["debian_repos"] and self.distro == "debian":
+                root_commands.append(
+                    "if [ -f /etc/apt/sources.list.d/debian.sources ]; then "
+                    "sed -i '/^Components:/ { /non-free-firmware/! s/$/ contrib non-free non-free-firmware/ }' /etc/apt/sources.list.d/debian.sources; "
+                    "elif [ -f /etc/apt/sources.list ]; then "
+                    "sed -i -E '/^deb .* main/ { /non-free-firmware/! s/ main.*/ main contrib non-free non-free-firmware/ }' /etc/apt/sources.list; "
+                    "fi && DEBIAN_FRONTEND=noninteractive apt-get update"
                 )
 
             if tasks["rpmfusion"] and self.distro == "fedora":
