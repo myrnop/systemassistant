@@ -2,8 +2,8 @@
 Name=System Assistant
 Comment=System maintenance and post-install setup utility
 Exec=system-assistant
-Icon=io.github.myrnchef.SystemAssistant
+Icon=io.github.myrnop.SystemAssistant
 Terminal=false
 Type=Application
 Categories=System;Settings;
-StartupWMClass=io.github.myrnchef.SystemAssistant
+StartupWMClass=io.github.myrnop.SystemAssistant

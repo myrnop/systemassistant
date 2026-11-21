@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.myrnchef.SystemAssistant</id>
+  <id>io.github.myrnop.SystemAssistant</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>System Assistant</name>
@@ -11,15 +11,15 @@
       mute the hardware PC speaker module, and install essential desktop tools.
     </p>
   </description>
-  <launchable type="desktop-id">io.github.myrnchef.SystemAssistant.desktop</launchable>
-  <url type="homepage">https://github.com/myrnchef/system-assistant</url>
-  <developer id="io.github.myrnchef">
+  <launchable type="desktop-id">io.github.myrnop.SystemAssistant.desktop</launchable>
+  <url type="homepage">https://github.com/myrnop/system-assistant</url>
+  <developer id="io.github.myrnop">
     <name>Faisal Almalahy</name>
   </developer>
   <screenshots>
     <screenshot type="default">
       <caption>Main window showing system maintenance toggles</caption>
-      <image>https://raw.githubusercontent.com/myrnchef/system-assistant/main/Pic1.png</image>
+      <image>https://raw.githubusercontent.com/myrnop/system-assistant/main/Pic1.png</image>
     </screenshot>
   </screenshots>
   <releases>

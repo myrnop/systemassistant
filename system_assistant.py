@@ -96,12 +96,12 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
         local_icon = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
-            "io.github.myrnchef.SystemAssistant.png",
+            "io.github.myrnop.SystemAssistant.png",
         )
         if os.path.exists(local_icon):
             hero_icon = Gtk.Image.new_from_file(local_icon)
         else:
-            hero_icon = Gtk.Image.new_from_icon_name("io.github.myrnchef.SystemAssistant")
+            hero_icon = Gtk.Image.new_from_icon_name("io.github.myrnop.SystemAssistant")
         hero_icon.set_pixel_size(76)
 
         hero_title = Gtk.Label(label="System Assistant")
@@ -357,7 +357,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
 class SystemAssistantApp(Adw.Application):
     def __init__(self):
-        super().__init__(application_id="io.github.myrnchef.SystemAssistant")
+        super().__init__(application_id="io.github.myrnop.SystemAssistant")
 
     def do_activate(self):
         win = SystemAssistantWindow(self)
