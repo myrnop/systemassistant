@@ -116,11 +116,22 @@ def get_uptime_str():
 
 def get_storage_str():
     try:
-        target = "/run/host" if (IN_FLATPAK and os.path.exists("/run/host")) else "/"
-        usage = shutil.disk_usage(target)
-        used_gb = round(usage.used / (1024**3), 1)
-        total_gb = round(usage.total / (1024**3), 1)
-        pct = round((usage.used / usage.total) * 100)
+        if IN_FLATPAK:
+            out = subprocess.check_output(
+                ["flatpak-spawn", "--host", "df", "-B1", "/"],
+                text=True,
+                stderr=subprocess.DEVNULL,
+            )
+            parts = out.strip().splitlines()[-1].split()
+            total = int(parts[1])
+            used = int(parts[2])
+        else:
+            usage = shutil.disk_usage("/")
+            total = usage.total
+            used = usage.used
+        used_gb = round(used / (1024**3), 1)
+        total_gb = round(total / (1024**3), 1)
+        pct = round((used / total) * 100)
         return f"{used_gb} GB / {total_gb} GB ({pct}% used)"
     except Exception:
         return "Unknown"
@@ -284,7 +295,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             ("cpu", "Processor", self.hw["cpu"], "applications-electronics-symbolic"),
             ("ram", "Memory", self.hw["ram"], "drive-harddisk-symbolic"),
             ("gpu", "Graphics", self.hw["gpu"], "video-display-symbolic"),
-            ("storage", "Root Storage", self.hw["storage"], "drive-multidisk-symbolic"),
+            ("storage", "Disk Storage", self.hw["storage"], "drive-multidisk-symbolic"),
             ("uptime", "Uptime", self.hw["uptime"], "preferences-system-time-symbolic"),
         ]
         for key, label_text, value_text, icon_name in hw_rows:
