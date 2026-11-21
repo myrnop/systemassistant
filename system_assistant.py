@@ -398,20 +398,22 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
         tweaks_group = Adw.PreferencesGroup(title="Desktop &amp; Codec Tweaks")
         self.row_rpmfusion = None
+        self.row_ubuntu_codecs = None
+        self.row_ubuntu_flatpak = None
         if self.distro in ("ubuntu", "debian"):
-            self.ubuntu_codecs_row = self.create_switch_row(
+            self.row_ubuntu_codecs = self.create_switch_row(
                 "Ubuntu Restricted Extras & Codecs",
                 "Install multimedia codecs, H.264/AAC playback, and core fonts",
                 "multimedia-player-symbolic",
             )
-            tweaks_group.add(self.ubuntu_codecs_row)
+            tweaks_group.add(self.row_ubuntu_codecs)
 
-            self.ubuntu_flatpak_row = self.create_switch_row(
+            self.row_ubuntu_flatpak = self.create_switch_row(
                 "Setup Flatpak & Flathub",
                 "Install Flatpak and enable the Flathub app repository",
                 "system-software-install-symbolic",
             )
-            tweaks_group.add(self.ubuntu_flatpak_row)
+            tweaks_group.add(self.row_ubuntu_flatpak)
 
         if self.distro == "fedora":
             self.row_rpmfusion = self.create_switch_row(
@@ -636,9 +638,25 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     states["spotify"],
                     "Installed",
                 )
+                if self.row_ubuntu_codecs:
+                    self.set_row_badge(
+                        self.row_ubuntu_codecs,
+                        "Install multimedia codecs, H.264/AAC playback, and core fonts",
+                        states["ubuntu_codecs"],
+                        "Installed",
+                    )
+                if self.row_ubuntu_flatpak:
+                    self.set_row_badge(
+                        self.row_ubuntu_flatpak,
+                        "Install Flatpak and enable the Flathub app repository",
+                        states["ubuntu_flatpak"],
+                        "Active",
+                    )
                 self.set_row_badge(
                     self.row_brave,
-                    "Configure Brave RPM repository and install browser",
+                    "Configure Brave APT repository and install browser"
+                    if self.distro in ("ubuntu", "debian")
+                    else "Configure Brave RPM repository and install browser",
                     states["brave"],
                     "Installed",
                 )
@@ -730,6 +748,8 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             "power_profiles": self.row_power_profiles.get_active(),
             "autocpufreq": self.row_autocpufreq.get_active(),
             "rpmfusion": self.row_rpmfusion.get_active() if self.row_rpmfusion else False,
+            "ubuntu_codecs": self.row_ubuntu_codecs.get_active() if self.row_ubuntu_codecs else False,
+            "ubuntu_flatpak": self.row_ubuntu_flatpak.get_active() if self.row_ubuntu_flatpak else False,
             "adw_gtk3": self.row_adw_gtk3.get_active(),
             "win_buttons": self.row_win_buttons.get_active(),
             "tweaks": self.row_tweaks.get_active(),
@@ -760,6 +780,8 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 or tasks["power_profiles"]
                 or tasks["autocpufreq"]
                 or (tasks["rpmfusion"] and self.distro == "fedora")
+                or (tasks["ubuntu_codecs"] and self.distro in ["ubuntu", "debian"])
+                or (tasks["ubuntu_flatpak"] and self.distro in ["ubuntu", "debian"])
                 or (tasks["adw_gtk3"] and self.distro in ["fedora", "arch"])
                 or (tasks["tweaks"] and not host_which("gnome-tweaks"))
                 or tasks["dev_tools"]
@@ -816,6 +838,24 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     "rm -rf /tmp/auto-cpufreq && auto-cpufreq --install"
                 )
 
+            if tasks["ubuntu_codecs"] and self.distro in ["ubuntu", "debian"]:
+                root_commands.append(
+                    "echo ttf-mscorefonts-installer msttcorefonts/accepted-mscorefonts-eula select true | debconf-set-selections"
+                )
+                root_commands.append(
+                    "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                    "DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-restricted-extras libavcodec-extra"
+                )
+
+            if tasks["ubuntu_flatpak"] and self.distro in ["ubuntu", "debian"]:
+                root_commands.append(
+                    "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                    "DEBIAN_FRONTEND=noninteractive apt-get install -y flatpak gnome-software-plugin-flatpak"
+                )
+                root_commands.append(
+                    "flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo"
+                )
+
             if tasks["rpmfusion"] and self.distro == "fedora":
                 root_commands.append(
                     "dnf install -y "
@@ -861,16 +901,29 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                         "pacman -S --noconfirm git github-cli python-pip curl wget"
                     )
 
-            if (
-                tasks["brave"]
-                and not host_which("brave-browser")
-                and self.distro == "fedora"
-            ):
-                root_commands.append("dnf install -y dnf-plugins-core")
-                root_commands.append(
-                    "dnf config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo"
-                )
-                root_commands.append("dnf install -y brave-browser")
+            if tasks["brave"] and not host_which("brave-browser"):
+                if self.distro in ["ubuntu", "debian"]:
+                    root_commands.append("DEBIAN_FRONTEND=noninteractive apt-get update")
+                    root_commands.append("DEBIAN_FRONTEND=noninteractive apt-get install -y curl")
+                    root_commands.append(
+                        "curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg "
+                        "https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg"
+                    )
+                    root_commands.append(
+                        "echo 'deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] "
+                        "https://brave-browser-apt-release.s3.brave.com/ stable main' > "
+                        "/etc/apt/sources.list.d/brave-browser-release.list"
+                    )
+                    root_commands.append(
+                        "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                        "DEBIAN_FRONTEND=noninteractive apt-get install -y brave-browser"
+                    )
+                elif self.distro == "fedora":
+                    root_commands.append("dnf install -y dnf-plugins-core")
+                    root_commands.append(
+                        "dnf config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo"
+                    )
+                    root_commands.append("dnf install -y brave-browser")
 
             if needs_root and root_commands:
                 self.log("Requesting administrator privileges...")
