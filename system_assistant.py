@@ -677,9 +677,6 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 if self.row_ubuntu_flatpak:
                     self.set_row_badge(
                         self.row_ubuntu_flatpak,
-                    self.row_ubuntu_firefox,
-                    self.row_ubuntu_nala_appimage,
-                    self.row_debian_repos,
                         "Install Flatpak and enable the Flathub app repository",
                         states["ubuntu_flatpak"],
                         "Active",
