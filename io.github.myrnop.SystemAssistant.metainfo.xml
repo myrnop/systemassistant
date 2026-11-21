@@ -23,6 +23,16 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.2.0" date="2026-11-21">
+      <description>
+        <p>Organized interface into dedicated tabs and added GNOME post-install tweaks:</p>
+        <ul>
+          <li>Added Overview, Maintenance, and Tweaks &amp; Apps navigation tabs</li>
+          <li>Added native About window with developer info</li>
+          <li>Added RPM Fusion &amp; multimedia codec setup, adw-gtk3 theme, and window titlebar button toggles</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.1.0" date="2026-11-21">
       <description>
         <p>Added System Hardware summary card and storage cleanup tasks:</p>

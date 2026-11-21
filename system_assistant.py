@@ -127,8 +127,8 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         super().__init__(
             application=app,
             title="System Assistant",
-            default_width=540,
-            default_height=740,
+            default_width=640,
+            default_height=680,
         )
         self.distro = get_distro()
         self.pretty_os = get_os_pretty_name()
@@ -139,20 +139,27 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
         toolbar_view = Adw.ToolbarView()
         header = Adw.HeaderBar()
-        header.set_title_widget(Adw.WindowTitle(title="System Assistant"))
+
+        self.stack = Adw.ViewStack()
+        switcher = Adw.ViewSwitcher(
+            stack=self.stack,
+            policy=Adw.ViewSwitcherPolicy.WIDE,
+        )
+        header.set_title_widget(switcher)
+
+        about_btn = Gtk.Button(
+            icon_name="help-about-symbolic",
+            tooltip_text="About System Assistant",
+        )
+        about_btn.connect("clicked", self.on_about_clicked)
+        header.pack_end(about_btn)
+
         toolbar_view.add_top_bar(header)
 
-        scrolled = Gtk.ScrolledWindow(hscrollbar_policy=Gtk.PolicyType.NEVER)
-        clamp = Adw.Clamp(
-            maximum_size=520,
-            margin_top=12,
-            margin_bottom=24,
-            margin_start=16,
-            margin_end=16,
-        )
+        # --- TAB 1: OVERVIEW ---
+        overview_page = Adw.PreferencesPage()
 
-        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18)
-
+        hero_group = Adw.PreferencesGroup()
         hero_box = Gtk.Box(
             orientation=Gtk.Orientation.VERTICAL,
             spacing=8,
@@ -181,16 +188,12 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         hero_box.append(hero_icon)
         hero_box.append(hero_title)
         hero_box.append(hero_subtitle)
-        main_box.append(hero_box)
+        hero_group.add(hero_box)
+        overview_page.add(hero_group)
 
         hw_group = Adw.PreferencesGroup(title="System Hardware")
-        hw_expander = Adw.ExpanderRow(
-            title=self.hw["model"],
-            subtitle=f"{self.hw['cpu']}  •  {self.hw['ram']} RAM",
-        )
-        hw_expander.add_prefix(Gtk.Image.new_from_icon_name("computer-symbolic"))
-
         hw_rows = [
+            ("Device", self.hw["model"], "computer-symbolic"),
             ("Processor", self.hw["cpu"], "cpu-symbolic"),
             ("Memory", self.hw["ram"], "drive-harddisk-symbolic"),
             ("Graphics", self.hw["gpu"], "video-display-symbolic"),
@@ -201,22 +204,26 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             val_label = Gtk.Label(label=value_text)
             val_label.add_css_class("dim-label")
             val_label.set_ellipsize(Pango.EllipsizeMode.END)
-            val_label.set_max_width_chars(32)
+            val_label.set_max_width_chars(38)
             row.add_suffix(val_label)
-            hw_expander.add_row(row)
+            hw_group.add(row)
 
-        hw_group.add(hw_expander)
-        main_box.append(hw_group)
+        overview_page.add(hw_group)
+        self.stack.add_titled_with_icon(
+            overview_page, "overview", "Overview", "computer-symbolic"
+        )
 
-        maint_group = Adw.PreferencesGroup(title="System Maintenance")
+        # --- TAB 2: MAINTENANCE ---
+        maint_page = Adw.PreferencesPage()
 
+        updates_group = Adw.PreferencesGroup(title="Updates &amp; Storage Cleanup")
         self.row_update = self.create_switch_row(
             title="Update System &amp; Flatpak Apps",
             subtitle="Sync repositories, upgrade packages, and update Flatpaks",
             icon_name="software-update-available-symbolic",
             active=True,
         )
-        maint_group.add(self.row_update)
+        updates_group.add(self.row_update)
 
         self.row_flatpak_clean = self.create_switch_row(
             title="Clean Unused Flatpak Runtimes",
@@ -224,7 +231,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             icon_name="user-trash-symbolic",
             active=False,
         )
-        maint_group.add(self.row_flatpak_clean)
+        updates_group.add(self.row_flatpak_clean)
 
         self.row_pkg_clean = self.create_switch_row(
             title="Clear Package Manager Cache",
@@ -232,7 +239,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             icon_name="edit-clear-all-symbolic",
             active=False,
         )
-        maint_group.add(self.row_pkg_clean)
+        updates_group.add(self.row_pkg_clean)
 
         self.row_journal_clean = self.create_switch_row(
             title="Vacuum Old System Logs",
@@ -240,26 +247,62 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             icon_name="document-open-recent-symbolic",
             active=False,
         )
-        maint_group.add(self.row_journal_clean)
+        updates_group.add(self.row_journal_clean)
+        maint_page.add(updates_group)
 
+        hw_tweaks_group = Adw.PreferencesGroup(title="Hardware &amp; Kernel")
         self.row_pcspkr = self.create_switch_row(
             title="Mute Hardware PC Speaker",
             subtitle="Unload and blacklist pcspkr &amp; snd_pcsp kernel modules",
             icon_name="audio-volume-muted-symbolic",
             active=False,
         )
-        maint_group.add(self.row_pcspkr)
-        main_box.append(maint_group)
+        hw_tweaks_group.add(self.row_pcspkr)
+        maint_page.add(hw_tweaks_group)
 
-        apps_group = Adw.PreferencesGroup(title="Apps &amp; Desktop Tweaks")
+        self.stack.add_titled_with_icon(
+            maint_page, "maintenance", "Maintenance", "system-run-symbolic"
+        )
 
+        # --- TAB 3: TWEAKS & APPS ---
+        apps_page = Adw.PreferencesPage()
+
+        tweaks_group = Adw.PreferencesGroup(title="Desktop &amp; Codec Tweaks")
+        self.row_rpmfusion = None
+        if self.distro == "fedora":
+            self.row_rpmfusion = self.create_switch_row(
+                title="RPM Fusion &amp; Multimedia Codecs",
+                subtitle="Enable RPM Fusion Free/Nonfree, OpenH264, and media codecs",
+                icon_name="multimedia-player-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_rpmfusion)
+
+        self.row_adw_gtk3 = self.create_switch_row(
+            title="Consistent Libadwaita GTK3 Theme",
+            subtitle="Install adw-gtk3 so legacy GTK3 apps match Libadwaita",
+            icon_name="preferences-desktop-theme-symbolic",
+            active=False,
+        )
+        tweaks_group.add(self.row_adw_gtk3)
+
+        self.row_win_buttons = self.create_switch_row(
+            title="Window Minimize &amp; Maximize Buttons",
+            subtitle="Enable minimize and maximize controls on GNOME titlebars",
+            icon_name="window-maximize-symbolic",
+            active=False,
+        )
+        tweaks_group.add(self.row_win_buttons)
+        apps_page.add(tweaks_group)
+
+        software_group = Adw.PreferencesGroup(title="Essential Applications")
         self.row_tweaks = self.create_switch_row(
             title="GNOME Tweaks &amp; Extensions",
             subtitle="Install gnome-tweaks and Extension Manager",
             icon_name="applications-utilities-symbolic",
             active=False,
         )
-        apps_group.add(self.row_tweaks)
+        software_group.add(self.row_tweaks)
 
         self.row_spotify = self.create_switch_row(
             title="Spotify",
@@ -267,7 +310,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             icon_name="folder-music-symbolic",
             active=False,
         )
-        apps_group.add(self.row_spotify)
+        software_group.add(self.row_spotify)
 
         self.row_brave = self.create_switch_row(
             title="Brave Browser",
@@ -275,8 +318,22 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             icon_name="web-browser-symbolic",
             active=False,
         )
-        apps_group.add(self.row_brave)
-        main_box.append(apps_group)
+        software_group.add(self.row_brave)
+        apps_page.add(software_group)
+
+        self.stack.add_titled_with_icon(
+            apps_page, "tweaks", "Tweaks & Apps", "applications-utilities-symbolic"
+        )
+
+        # --- BOTTOM ACTION BAR & LIVE LOG ---
+        bottom_clamp = Adw.Clamp(
+            maximum_size=560,
+            margin_top=8,
+            margin_bottom=12,
+            margin_start=16,
+            margin_end=16,
+        )
+        bottom_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
 
         btn_content = Gtk.Box(
             orientation=Gtk.Orientation.HORIZONTAL,
@@ -294,7 +351,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         self.run_btn.set_halign(Gtk.Align.CENTER)
         self.run_btn.set_size_request(220, 42)
         self.run_btn.connect("clicked", self.on_run_clicked)
-        main_box.append(self.run_btn)
+        bottom_box.append(self.run_btn)
 
         log_group = Adw.PreferencesGroup()
         self.log_expander = Adw.ExpanderRow(
@@ -312,24 +369,47 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             cursor_visible=False,
             monospace=True,
             wrap_mode=Gtk.WrapMode.WORD_CHAR,
-            top_margin=12,
-            bottom_margin=12,
-            left_margin=12,
-            right_margin=12,
+            top_margin=10,
+            bottom_margin=10,
+            left_margin=10,
+            right_margin=10,
         )
         self.scrolled_log = Gtk.ScrolledWindow(
-            min_content_height=180,
+            min_content_height=140,
             child=self.log_view,
         )
         self.log_expander.add_row(self.scrolled_log)
         log_group.add(self.log_expander)
-        main_box.append(log_group)
+        bottom_box.append(log_group)
 
-        clamp.set_child(main_box)
-        scrolled.set_child(clamp)
-        toolbar_view.set_content(scrolled)
+        credit_label = Gtk.Label(label="Made with ❤️ by MyrnChef")
+        credit_label.add_css_class("dim-label")
+        credit_label.add_css_class("caption")
+        credit_label.set_halign(Gtk.Align.CENTER)
+        bottom_box.append(credit_label)
+
+        bottom_clamp.set_child(bottom_box)
+
+        toolbar_view.set_content(self.stack)
+        toolbar_view.add_bottom_bar(bottom_clamp)
+
         self.toast_overlay.set_child(toolbar_view)
         self.set_content(self.toast_overlay)
+
+    def on_about_clicked(self, button):
+        about = Adw.AboutWindow(
+            transient_for=self,
+            application_name="System Assistant",
+            application_icon="io.github.myrnop.SystemAssistant",
+            developer_name="MyrnChef",
+            version="1.2.0",
+            comments="Made with ❤️ by MyrnChef\n\nA native GTK 4 and Libadwaita system maintenance and post-install setup utility for Linux desktops.",
+            website="https://github.com/myrnop/systemassistant",
+            issue_url="https://github.com/myrnop/systemassistant/issues",
+            license_type=Gtk.License.GPL_3_0,
+            developers=["MyrnChef https://github.com/myrnop"],
+        )
+        about.present()
 
     def create_switch_row(self, title, subtitle, icon_name, active=False):
         row = Adw.SwitchRow(title=title, subtitle=subtitle, active=active)
@@ -377,6 +457,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             "pkg_clean": self.row_pkg_clean.get_active(),
             "journal_clean": self.row_journal_clean.get_active(),
             "pcspkr": self.row_pcspkr.get_active(),
+            "rpmfusion": self.row_rpmfusion.get_active() if self.row_rpmfusion else False,
+            "adw_gtk3": self.row_adw_gtk3.get_active(),
+            "win_buttons": self.row_win_buttons.get_active(),
             "tweaks": self.row_tweaks.get_active(),
             "spotify": self.row_spotify.get_active(),
             "brave": self.row_brave.get_active(),
@@ -401,6 +484,8 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 or tasks["pkg_clean"]
                 or tasks["journal_clean"]
                 or tasks["pcspkr"]
+                or (tasks["rpmfusion"] and self.distro == "fedora")
+                or (tasks["adw_gtk3"] and self.distro in ["fedora", "arch"])
                 or (tasks["tweaks"] and not host_which("gnome-tweaks"))
                 or (tasks["brave"] and not host_which("brave-browser"))
             )
@@ -432,6 +517,25 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     "printf 'blacklist pcspkr\\nblacklist snd_pcsp\\n' > /etc/modprobe.d/blacklist-pcspkr.conf"
                 )
 
+            if tasks["rpmfusion"] and self.distro == "fedora":
+                root_commands.append(
+                    "dnf install -y "
+                    "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm "
+                    "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm"
+                )
+                root_commands.append(
+                    "dnf config-manager setopt fedora-cisco-openh264.enabled=1"
+                )
+                root_commands.append(
+                    "dnf install -y @multimedia --setopt=install_weak_deps=False --exclude=PackageKit-gstreamer-plugin"
+                )
+
+            if tasks["adw_gtk3"]:
+                if self.distro == "fedora":
+                    root_commands.append("dnf install -y adw-gtk3-theme")
+                elif self.distro == "arch":
+                    root_commands.append("pacman -S --noconfirm adw-gtk-theme")
+
             if tasks["tweaks"] and not host_which("gnome-tweaks"):
                 if self.distro in ["ubuntu", "debian"]:
                     root_commands.append(
@@ -459,6 +563,40 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 self.log("Requesting administrator privileges...")
                 combined_script = " && ".join(root_commands)
                 self.run_cmd(["pkexec", "bash", "-c", combined_script])
+
+            if tasks["adw_gtk3"]:
+                if host_which("flatpak"):
+                    self.run_cmd(
+                        [
+                            "flatpak",
+                            "install",
+                            "-y",
+                            "flathub",
+                            "org.gtk.Gtk3theme.adw-gtk3",
+                            "org.gtk.Gtk3theme.adw-gtk3-dark",
+                        ]
+                    )
+                if host_which("gsettings"):
+                    self.run_cmd(
+                        [
+                            "gsettings",
+                            "set",
+                            "org.gnome.desktop.interface",
+                            "gtk-theme",
+                            "adw-gtk3-dark",
+                        ]
+                    )
+
+            if tasks["win_buttons"] and host_which("gsettings"):
+                self.run_cmd(
+                    [
+                        "gsettings",
+                        "set",
+                        "org.gnome.desktop.wm.preferences",
+                        "button-layout",
+                        ":minimize,maximize,close",
+                    ]
+                )
 
             if tasks["update"] and host_which("flatpak"):
                 self.run_cmd(["flatpak", "update", "-y"])
