@@ -88,12 +88,24 @@ def get_os_pretty_name():
 
 def get_distro():
     path = get_os_release_path()
+    distro_id = "unknown"
+    id_like = ""
     if os.path.exists(path):
         with open(path) as f:
             for line in f:
                 if line.startswith("ID="):
-                    return line.strip().split("=")[1].strip('"').lower()
-    return "unknown"
+                    distro_id = line.strip().split("=", 1)[1].strip('"').lower()
+                elif line.startswith("ID_LIKE="):
+                    id_like = line.strip().split("=", 1)[1].strip('"').lower()
+    if distro_id in ("ubuntu", "debian", "arch", "fedora"):
+        return distro_id
+    if "ubuntu" in id_like or "debian" in id_like:
+        return "ubuntu"
+    if "fedora" in id_like:
+        return "fedora"
+    if "arch" in id_like:
+        return "arch"
+    return distro_id
 
 
 def get_uptime_str():
@@ -386,6 +398,21 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
         tweaks_group = Adw.PreferencesGroup(title="Desktop &amp; Codec Tweaks")
         self.row_rpmfusion = None
+        if self.distro in ("ubuntu", "debian"):
+            self.ubuntu_codecs_row = self.create_switch_row(
+                "Ubuntu Restricted Extras & Codecs",
+                "Install multimedia codecs, H.264/AAC playback, and core fonts",
+                "multimedia-player-symbolic",
+            )
+            tweaks_group.add(self.ubuntu_codecs_row)
+
+            self.ubuntu_flatpak_row = self.create_switch_row(
+                "Setup Flatpak & Flathub",
+                "Install Flatpak and enable the Flathub app repository",
+                "system-software-install-symbolic",
+            )
+            tweaks_group.add(self.ubuntu_flatpak_row)
+
         if self.distro == "fedora":
             self.row_rpmfusion = self.create_switch_row(
                 title="RPM Fusion &amp; Multimedia Codecs",
