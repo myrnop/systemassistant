@@ -12,14 +12,14 @@
     </p>
   </description>
   <launchable type="desktop-id">io.github.myrnop.SystemAssistant.desktop</launchable>
-  <url type="homepage">https://github.com/myrnop/system-assistant</url>
+  <url type="homepage">https://github.com/myrnop/systemassistant</url>
   <developer id="io.github.myrnop">
     <name>Faisal Almalahy</name>
   </developer>
   <screenshots>
     <screenshot type="default">
       <caption>Main window showing system maintenance toggles</caption>
-      <image>https://raw.githubusercontent.com/myrnop/system-assistant/main/Pic1.png</image>
+      <image>https://raw.githubusercontent.com/myrnop/systemassistant/main/Pic1.png</image>
     </screenshot>
   </screenshots>
   <releases>

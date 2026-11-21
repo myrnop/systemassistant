@@ -2,7 +2,7 @@ app-id: io.github.myrnop.SystemAssistant
 runtime: org.gnome.Platform
 runtime-version: '51'
 sdk: org.gnome.Sdk
-command: system-assistant
+command: systemassistant
 
 finish-args:
   - --share=ipc
@@ -13,10 +13,10 @@ finish-args:
   - --filesystem=host:ro
 
 modules:
-  - name: system-assistant
+  - name: systemassistant
     buildsystem: simple
     build-commands:
-      - install -Dm755 system_assistant.py /app/bin/system-assistant
+      - install -Dm755 system_assistant.py /app/bin/systemassistant
       - install -Dm644 io.github.myrnop.SystemAssistant.desktop /app/share/applications/io.github.myrnop.SystemAssistant.desktop
       - install -Dm644 io.github.myrnop.SystemAssistant.metainfo.xml /app/share/metainfo/io.github.myrnop.SystemAssistant.metainfo.xml
       - install -Dm644 io.github.myrnop.SystemAssistant.png /app/share/icons/hicolor/512x512/apps/io.github.myrnop.SystemAssistant.png
