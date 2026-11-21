@@ -194,7 +194,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         hw_group = Adw.PreferencesGroup(title="System Hardware")
         hw_rows = [
             ("Device", self.hw["model"], "computer-symbolic"),
-            ("Processor", self.hw["cpu"], "cpu-symbolic"),
+            ("Processor", self.hw["cpu"], "applications-electronics-symbolic"),
             ("Memory", self.hw["ram"], "drive-harddisk-symbolic"),
             ("Graphics", self.hw["gpu"], "video-display-symbolic"),
         ]
