@@ -611,8 +611,11 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 "rpmfusion": host_file_exists("/etc/yum.repos.d/rpmfusion-free.repo"),
                 "ubuntu_codecs": host_file_exists("/usr/share/doc/ubuntu-restricted-extras/copyright"),
                 "ubuntu_flatpak": bool(host_which("flatpak")) and (
-                    host_file_exists("/var/lib/flatpak/repo/flathub.trustedkeys.gpg")
-                    or host_file_exists("/var/lib/flatpak/repo/config")
+                    "flathub" in subprocess.run(
+                        wrap_host_cmd(["flatpak", "remotes"]),
+                        capture_output=True,
+                        text=True,
+                    ).stdout
                 ),
                 "ubuntu_firefox": host_file_exists("/etc/apt/sources.list.d/mozilla.list") and bool(host_which("firefox")),
                 "debian_repos": (
