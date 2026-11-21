@@ -23,6 +23,16 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.3.0" date="2026-11-21">
+      <description>
+        <p>Added live system status detection, clipboard log export, and Flathub branding metadata:</p>
+        <ul>
+          <li>Automatically detect already-installed apps and active system tweaks on startup</li>
+          <li>Improved GPU model parsing in the Overview tab</li>
+          <li>Added a one-click Copy Log button inside Task Output Log</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-11-21">
       <description>
         <p>Organized interface into dedicated tabs and added GNOME post-install tweaks:</p>
@@ -50,4 +60,8 @@
     </release>
   </releases>
   <content_rating type="oars-1.1" />
+  <branding>
+    <color type="primary" scheme_preference="light">#3584e4</color>
+    <color type="primary" scheme_preference="dark">#1c71d8</color>
+  </branding>
 </component>
