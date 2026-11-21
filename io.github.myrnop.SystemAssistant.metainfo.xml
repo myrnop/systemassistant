@@ -23,6 +23,16 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.1.0" date="2026-11-21">
+      <description>
+        <p>Added System Hardware summary card and storage cleanup tasks:</p>
+        <ul>
+          <li>Expandable System Hardware summary card (device, CPU, RAM, GPU)</li>
+          <li>Clean unused Flatpak runtimes</li>
+          <li>Clear package manager cache and vacuum old systemd journal logs</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-11-21">
       <description>
         <p>Initial release.</p>

@@ -8,7 +8,7 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gtk
+from gi.repository import Adw, GLib, Gtk, Pango
 
 IN_FLATPAK = os.path.exists("/.flatpak-info")
 
@@ -56,17 +56,84 @@ def get_distro():
     return "unknown"
 
 
+def get_hardware_info():
+    model = "Linux PC"
+    try:
+        vendor_path = "/sys/class/dmi/id/sys_vendor"
+        name_path = "/sys/class/dmi/id/product_name"
+        if os.path.exists(name_path):
+            with open(name_path) as f:
+                prod = f.read().strip()
+            vend = ""
+            if os.path.exists(vendor_path):
+                with open(vendor_path) as f:
+                    vend = f.read().strip()
+            if vend and not prod.lower().startswith(vend.lower()):
+                model = f"{vend} {prod}"
+            else:
+                model = prod
+    except Exception:
+        pass
+
+    cpu = "Unknown Processor"
+    try:
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                if line.startswith("model name"):
+                    cpu = line.split(":", 1)[1].strip()
+                    for noise in ["(R)", "(TM)", "Processor", "with Radeon Graphics"]:
+                        cpu = cpu.replace(noise, "")
+                    cpu = " ".join(cpu.split())
+                    break
+    except Exception:
+        pass
+
+    ram = "Unknown"
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    kb = int(line.split()[1])
+                    gb = round(kb / (1024 * 1024), 1)
+                    ram = f"{gb} GB"
+                    break
+    except Exception:
+        pass
+
+    gpu = "Integrated / Standard Graphics"
+    try:
+        out = subprocess.check_output(["lspci"], text=True, stderr=subprocess.DEVNULL)
+        for line in out.splitlines():
+            if "VGA compatible controller" in line or "3D controller" in line:
+                gpu_raw = line.split(":", 2)[-1].strip()
+                if "[" in gpu_raw and "]" in gpu_raw:
+                    gpu = gpu_raw.split("[")[-1].split("]")[0]
+                else:
+                    gpu = gpu_raw.split("(rev")[0].strip()
+                break
+    except Exception:
+        pass
+
+    return {
+        "model": model,
+        "cpu": cpu,
+        "ram": ram,
+        "gpu": gpu,
+    }
+
+
 class SystemAssistantWindow(Adw.ApplicationWindow):
     def __init__(self, app):
         super().__init__(
             application=app,
             title="System Assistant",
             default_width=540,
-            default_height=680,
+            default_height=740,
         )
         self.distro = get_distro()
         self.pretty_os = get_os_pretty_name()
         self.kernel = platform.release()
+        self.hw = get_hardware_info()
 
         self.toast_overlay = Adw.ToastOverlay()
 
@@ -116,6 +183,31 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         hero_box.append(hero_subtitle)
         main_box.append(hero_box)
 
+        hw_group = Adw.PreferencesGroup(title="System Hardware")
+        hw_expander = Adw.ExpanderRow(
+            title=self.hw["model"],
+            subtitle=f"{self.hw['cpu']}  •  {self.hw['ram']} RAM",
+        )
+        hw_expander.add_prefix(Gtk.Image.new_from_icon_name("computer-symbolic"))
+
+        hw_rows = [
+            ("Processor", self.hw["cpu"], "cpu-symbolic"),
+            ("Memory", self.hw["ram"], "drive-harddisk-symbolic"),
+            ("Graphics", self.hw["gpu"], "video-display-symbolic"),
+        ]
+        for label_text, value_text, icon_name in hw_rows:
+            row = Adw.ActionRow(title=label_text)
+            row.add_prefix(Gtk.Image.new_from_icon_name(icon_name))
+            val_label = Gtk.Label(label=value_text)
+            val_label.add_css_class("dim-label")
+            val_label.set_ellipsize(Pango.EllipsizeMode.END)
+            val_label.set_max_width_chars(32)
+            row.add_suffix(val_label)
+            hw_expander.add_row(row)
+
+        hw_group.add(hw_expander)
+        main_box.append(hw_group)
+
         maint_group = Adw.PreferencesGroup(title="System Maintenance")
 
         self.row_update = self.create_switch_row(
@@ -125,6 +217,30 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             active=True,
         )
         maint_group.add(self.row_update)
+
+        self.row_flatpak_clean = self.create_switch_row(
+            title="Clean Unused Flatpak Runtimes",
+            subtitle="Remove orphaned Flatpak runtimes and extensions",
+            icon_name="user-trash-symbolic",
+            active=False,
+        )
+        maint_group.add(self.row_flatpak_clean)
+
+        self.row_pkg_clean = self.create_switch_row(
+            title="Clear Package Manager Cache",
+            subtitle="Purge cached package metadata and unused dependencies",
+            icon_name="edit-clear-all-symbolic",
+            active=False,
+        )
+        maint_group.add(self.row_pkg_clean)
+
+        self.row_journal_clean = self.create_switch_row(
+            title="Vacuum Old System Logs",
+            subtitle="Remove archived systemd journal logs older than 7 days",
+            icon_name="document-open-recent-symbolic",
+            active=False,
+        )
+        maint_group.add(self.row_journal_clean)
 
         self.row_pcspkr = self.create_switch_row(
             title="Mute Hardware PC Speaker",
@@ -257,6 +373,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
     def on_run_clicked(self, button):
         tasks = {
             "update": self.row_update.get_active(),
+            "flatpak_clean": self.row_flatpak_clean.get_active(),
+            "pkg_clean": self.row_pkg_clean.get_active(),
+            "journal_clean": self.row_journal_clean.get_active(),
             "pcspkr": self.row_pcspkr.get_active(),
             "tweaks": self.row_tweaks.get_active(),
             "spotify": self.row_spotify.get_active(),
@@ -279,6 +398,8 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         try:
             needs_root = (
                 tasks["update"]
+                or tasks["pkg_clean"]
+                or tasks["journal_clean"]
                 or tasks["pcspkr"]
                 or (tasks["tweaks"] and not host_which("gnome-tweaks"))
                 or (tasks["brave"] and not host_which("brave-browser"))
@@ -293,6 +414,17 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     root_commands.append("dnf update -y")
                 elif self.distro == "arch":
                     root_commands.append("pacman -Syu --noconfirm")
+
+            if tasks["pkg_clean"]:
+                if self.distro in ["ubuntu", "debian"]:
+                    root_commands.append("apt autoremove -y && apt clean")
+                elif self.distro == "fedora":
+                    root_commands.append("dnf clean all")
+                elif self.distro == "arch":
+                    root_commands.append("pacman -Sc --noconfirm")
+
+            if tasks["journal_clean"]:
+                root_commands.append("journalctl --vacuum-time=7d")
 
             if tasks["pcspkr"]:
                 root_commands.append("modprobe -r pcspkr snd_pcsp 2>/dev/null || true")
@@ -330,6 +462,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
             if tasks["update"] and host_which("flatpak"):
                 self.run_cmd(["flatpak", "update", "-y"])
+
+            if tasks["flatpak_clean"] and host_which("flatpak"):
+                self.run_cmd(["flatpak", "uninstall", "--unused", "-y"])
 
             if tasks["spotify"]:
                 if host_which("flatpak"):
