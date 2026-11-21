@@ -23,4 +23,4 @@ modules:
     sources:
       - type: git
         url: https://github.com/myrnop/systemassistant.git
-        commit: cbb0cb147403cc1b058a2f2081450f34fbc3e513
+        commit: 61ab7fc25da4e802274114dcd2fc5ceaeb0133ef
