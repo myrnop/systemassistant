@@ -987,6 +987,32 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
             self.log("\nAll selected tasks completed successfully!")
             self.show_toast("All selected tasks completed!")
+
+            def _reset_and_refresh():
+                for row in (
+                    self.row_update,
+                    self.row_flatpak_clean,
+                    self.row_pkg_clean,
+                    self.row_journal_clean,
+                    self.row_pcspkr,
+                    self.row_power_profiles,
+                    self.row_autocpufreq,
+                    self.row_rpmfusion,
+                    self.row_ubuntu_codecs,
+                    self.row_ubuntu_flatpak,
+                    self.row_adw_gtk3,
+                    self.row_win_buttons,
+                    self.row_tweaks,
+                    self.row_dev_tools,
+                    self.row_spotify,
+                    self.row_brave,
+                ):
+                    if row is not None:
+                        row.set_active(False)
+                self.refresh_detected_states()
+                return False
+
+            GLib.idle_add(_reset_and_refresh)
             self.hw_labels["storage"].set_label(get_storage_str())
             self.hw_labels["uptime"].set_label(get_uptime_str())
             self.refresh_detected_states()
