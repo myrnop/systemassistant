@@ -398,6 +398,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
         tweaks_group = Adw.PreferencesGroup(title="Desktop &amp; Codec Tweaks")
         self.row_rpmfusion = None
+        self.row_arch_pacman = None
+        self.row_arch_yay = None
+        self.row_arch_codecs_flatpak = None
         self.row_ubuntu_codecs = None
         self.row_ubuntu_flatpak = None
         self.row_ubuntu_firefox = None
@@ -454,6 +457,31 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             )
             tweaks_group.add(self.row_rpmfusion)
 
+        if self.distro == "arch":
+            self.row_arch_pacman = self.create_switch_row(
+                title="Enable Multilib &amp; Parallel Downloads",
+                subtitle="Enable 32-bit [multilib] repo, Color, and ParallelDownloads in pacman.conf",
+                icon_name="system-software-install-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_arch_pacman)
+
+            self.row_arch_yay = self.create_switch_row(
+                title="Install yay AUR Helper",
+                subtitle="Build and install yay-bin for Arch User Repository packages",
+                icon_name="utilities-terminal-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_arch_yay)
+
+            self.row_arch_codecs_flatpak = self.create_switch_row(
+                title="Flatpak, Flathub &amp; Multimedia Codecs",
+                subtitle="Install Flatpak, Flathub remote, FFmpeg, and GStreamer plugins",
+                icon_name="multimedia-player-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_arch_codecs_flatpak)
+
         self.row_adw_gtk3 = self.create_switch_row(
             title="Consistent Libadwaita GTK3 Theme",
             subtitle="Install adw-gtk3 so legacy GTK3 apps match Libadwaita",
@@ -496,11 +524,12 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         )
         software_group.add(self.row_spotify)
 
-        brave_sub = (
-            "Configure Brave APT repository and install browser"
-            if self.distro in ("ubuntu", "debian")
-            else "Configure Brave RPM repository and install browser"
-        )
+        if self.distro in ("ubuntu", "debian"):
+            brave_sub = "Configure Brave APT repository and install browser"
+        elif self.distro == "arch":
+            brave_sub = "Install Brave Browser via AUR (yay/paru) or Flathub"
+        else:
+            brave_sub = "Configure Brave RPM repository and install browser"
         self.row_brave = self.create_switch_row(
             title="Brave Browser",
             subtitle=brave_sub,
@@ -609,6 +638,16 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 "power_profiles": host_which("powerprofilesctl"),
                 "autocpufreq": host_which("auto-cpufreq"),
                 "rpmfusion": host_file_exists("/etc/yum.repos.d/rpmfusion-free.repo"),
+                "arch_pacman": (
+                    host_file_exists("/etc/pacman.conf")
+                    and "\n[multilib]" in open(
+                        "/run/host/etc/pacman.conf"
+                        if os.path.exists("/run/host/etc/pacman.conf")
+                        else "/etc/pacman.conf"
+                    ).read()
+                ) if self.distro == "arch" else False,
+                "arch_yay": bool(host_which("yay") or host_which("paru")),
+                "arch_codecs_flatpak": bool(host_which("flatpak") and host_which("ffmpeg")),
                 "ubuntu_codecs": host_file_exists("/usr/share/doc/ubuntu-restricted-extras/copyright"),
                 "ubuntu_flatpak": bool(host_which("flatpak")) and (
                     "flathub" in subprocess.run(
@@ -663,9 +702,33 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 if self.row_rpmfusion:
                     self.set_row_badge(
                         self.row_rpmfusion,
+                    self.row_arch_pacman,
+                    self.row_arch_yay,
+                    self.row_arch_codecs_flatpak,
                         "Enable RPM Fusion Free/Nonfree, OpenH264, and media codecs",
                         states["rpmfusion"],
                         "Enabled",
+                    )
+                if self.row_arch_pacman:
+                    self.set_row_badge(
+                        self.row_arch_pacman,
+                        "Enable 32-bit [multilib] repo, Color, and ParallelDownloads in pacman.conf",
+                        states["arch_pacman"],
+                        "Enabled",
+                    )
+                if self.row_arch_yay:
+                    self.set_row_badge(
+                        self.row_arch_yay,
+                        "Build and install yay-bin for Arch User Repository packages",
+                        states["arch_yay"],
+                        "Installed",
+                    )
+                if self.row_arch_codecs_flatpak:
+                    self.set_row_badge(
+                        self.row_arch_codecs_flatpak,
+                        "Install Flatpak, Flathub remote, FFmpeg, and GStreamer plugins",
+                        states["arch_codecs_flatpak"],
+                        "Installed",
                     )
                 if self.row_ubuntu_codecs:
                     self.set_row_badge(
@@ -784,7 +847,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             application_name="System Assistant",
             application_icon="io.github.myrnop.SystemAssistant",
             developer_name="MyrnChef",
-            version="1.4.0",
+            version="1.5.0",
             comments="Made with ❤️ by MyrnChef\n\nA native GTK 4 and Libadwaita system maintenance and post-install setup utility for Linux desktops.",
             website="https://github.com/myrnop/systemassistant",
             issue_url="https://github.com/myrnop/systemassistant/issues",
@@ -842,6 +905,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             "power_profiles": self.row_power_profiles.get_active(),
             "autocpufreq": self.row_autocpufreq.get_active(),
             "rpmfusion": self.row_rpmfusion.get_active() if self.row_rpmfusion else False,
+            "arch_pacman": self.row_arch_pacman.get_active() if self.row_arch_pacman else False,
+            "arch_yay": self.row_arch_yay.get_active() if self.row_arch_yay else False,
+            "arch_codecs_flatpak": self.row_arch_codecs_flatpak.get_active() if self.row_arch_codecs_flatpak else False,
             "ubuntu_codecs": self.row_ubuntu_codecs.get_active() if self.row_ubuntu_codecs else False,
             "ubuntu_flatpak": self.row_ubuntu_flatpak.get_active() if self.row_ubuntu_flatpak else False,
             "ubuntu_firefox": self.row_ubuntu_firefox.get_active() if self.row_ubuntu_firefox else False,
@@ -877,6 +943,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 or tasks["power_profiles"]
                 or tasks["autocpufreq"]
                 or (tasks["rpmfusion"] and self.distro == "fedora")
+                or (tasks["arch_pacman"] and self.distro == "arch")
+                or (tasks["arch_yay"] and self.distro == "arch")
+                or (tasks["arch_codecs_flatpak"] and self.distro == "arch")
                 or (tasks["ubuntu_codecs"] and self.distro in ["ubuntu", "debian"])
                 or (tasks["ubuntu_flatpak"] and self.distro in ["ubuntu", "debian"])
                 or (tasks["ubuntu_firefox"] and self.distro in ["ubuntu", "debian"])
@@ -904,7 +973,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 elif self.distro == "fedora":
                     root_commands.append("dnf clean all")
                 elif self.distro == "arch":
-                    root_commands.append("pacman -Sc --noconfirm")
+                    root_commands.append(
+                        "pacman -Sc --noconfirm && (pacman -Qtdq | pacman -Rns --noconfirm - || true)"
+                    )
 
             if tasks["journal_clean"]:
                 root_commands.append("journalctl --vacuum-time=7d")
@@ -993,6 +1064,32 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     "fi && DEBIAN_FRONTEND=noninteractive apt-get update"
                 )
 
+            if tasks["arch_pacman"] and self.distro == "arch":
+                root_commands.append(
+                    "sed -i 's/^#Color/Color/' /etc/pacman.conf && "
+                    "sed -i 's/^#ParallelDownloads.*/ParallelDownloads = 5/' /etc/pacman.conf && "
+                    "sed -i '/^#\\[multilib\\]/,/^#Include/ s/^#//' /etc/pacman.conf && "
+                    "pacman -Syu --noconfirm"
+                )
+
+            if tasks["arch_yay"] and self.distro == "arch":
+                root_commands.append("pacman -S --needed --noconfirm base-devel git")
+                root_commands.append(
+                    "TARGET_USER=${PKEXEC_UID:+$(id -un $PKEXEC_UID)}; "
+                    "TARGET_USER=${TARGET_USER:-${SUDO_USER:-$USER}}; "
+                    "su - \"$TARGET_USER\" -c '"
+                    "rm -rf /tmp/yay-bin && "
+                    "git clone --depth=1 https://aur.archlinux.org/yay-bin.git /tmp/yay-bin && "
+                    "cd /tmp/yay-bin && makepkg -si --noconfirm && "
+                    "rm -rf /tmp/yay-bin'"
+                )
+
+            if tasks["arch_codecs_flatpak"] and self.distro == "arch":
+                root_commands.append(
+                    "pacman -S --needed --noconfirm flatpak ffmpeg gst-plugins-good gst-plugins-bad gst-plugins-ugly gst-libav && "
+                    "flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo"
+                )
+
             if tasks["rpmfusion"] and self.distro == "fedora":
                 root_commands.append(
                     "dnf install -y "
@@ -1061,6 +1158,20 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                         "dnf config-manager addrepo --from-repofile=https://brave-browser-rpm-release.s3.brave.com/brave-browser.repo"
                     )
                     root_commands.append("dnf install -y brave-browser")
+                elif self.distro == "arch":
+                    root_commands.append(
+                        "TARGET_USER=${PKEXEC_UID:+$(id -un $PKEXEC_UID)}; "
+                        "TARGET_USER=${TARGET_USER:-${SUDO_USER:-$USER}}; "
+                        "if command -v yay >/dev/null 2>&1; then "
+                        "su - \"$TARGET_USER\" -c 'yay -S --noconfirm brave-bin'; "
+                        "elif command -v paru >/dev/null 2>&1; then "
+                        "su - \"$TARGET_USER\" -c 'paru -S --noconfirm brave-bin'; "
+                        "else "
+                        "pacman -S --needed --noconfirm flatpak && "
+                        "flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo && "
+                        "flatpak install -y flathub com.brave.Browser; "
+                        "fi"
+                    )
 
             if needs_root and root_commands:
                 self.log("Requesting administrator privileges...")
