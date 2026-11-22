@@ -677,7 +677,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 "tweaks": host_which("gnome-tweaks"),
                 "dev_tools": host_which("git") and host_which("gh"),
                 "spotify": host_flatpak_installed("com.spotify.Client"),
-                "brave": host_which("brave-browser"),
+                "brave": bool(host_which("brave-browser") or host_which("brave") or host_flatpak_installed("com.brave.Browser")),
             }
 
             def _apply():
@@ -809,11 +809,15 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                         states["ubuntu_flatpak"],
                         "Active",
                     )
+                if self.distro in ("ubuntu", "debian"):
+                    brave_sub_applied = "Configure Brave APT repository and install browser"
+                elif self.distro == "arch":
+                    brave_sub_applied = "Install Brave Browser via AUR (yay/paru) or Flathub"
+                else:
+                    brave_sub_applied = "Configure Brave RPM repository and install browser"
                 self.set_row_badge(
                     self.row_brave,
-                    "Configure Brave APT repository and install browser"
-                    if self.distro in ("ubuntu", "debian")
-                    else "Configure Brave RPM repository and install browser",
+                    brave_sub_applied,
                     states["brave"],
                     "Installed",
                 )
@@ -1136,7 +1140,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                         "pacman -S --noconfirm git github-cli python-pip curl wget"
                     )
 
-            if tasks["brave"] and not host_which("brave-browser"):
+            if tasks["brave"] and not (host_which("brave-browser") or host_which("brave")):
                 if self.distro in ["ubuntu", "debian"]:
                     root_commands.append("DEBIAN_FRONTEND=noninteractive apt-get update")
                     root_commands.append("DEBIAN_FRONTEND=noninteractive apt-get install -y curl")
