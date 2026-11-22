@@ -9,3 +9,7 @@ deb-build/
 *.flatpak
 *.pkg.tar.*
 *.bak.png
+*.rpm
+rpmbuild/
+*.rpm
+rpmbuild/
