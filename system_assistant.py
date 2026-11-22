@@ -1080,8 +1080,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     "su - \"$TARGET_USER\" -c '"
                     "rm -rf /tmp/yay-bin && "
                     "git clone --depth=1 https://aur.archlinux.org/yay-bin.git /tmp/yay-bin && "
-                    "cd /tmp/yay-bin && makepkg -si --noconfirm && "
-                    "rm -rf /tmp/yay-bin'"
+                    "cd /tmp/yay-bin && makepkg -s --noconfirm' && "
+                    "pacman -U --noconfirm /tmp/yay-bin/yay-bin-*.pkg.tar.zst && "
+                    "rm -rf /tmp/yay-bin"
                 )
 
             if tasks["arch_codecs_flatpak"] and self.distro == "arch":
@@ -1162,10 +1163,12 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     root_commands.append(
                         "TARGET_USER=${PKEXEC_UID:+$(id -un $PKEXEC_UID)}; "
                         "TARGET_USER=${TARGET_USER:-${SUDO_USER:-$USER}}; "
-                        "if command -v yay >/dev/null 2>&1; then "
-                        "su - \"$TARGET_USER\" -c 'yay -S --noconfirm brave-bin'; "
-                        "elif command -v paru >/dev/null 2>&1; then "
-                        "su - \"$TARGET_USER\" -c 'paru -S --noconfirm brave-bin'; "
+                        "if command -v yay >/dev/null 2>&1 || command -v paru >/dev/null 2>&1; then "
+                        "AUR_HELPER=$(command -v yay || command -v paru); "
+                        "echo \"$TARGET_USER ALL=(ALL) NOPASSWD: /usr/bin/pacman\" > /etc/sudoers.d/99-system-assistant-aur && "
+                        "chmod 0440 /etc/sudoers.d/99-system-assistant-aur && "
+                        "su - \"$TARGET_USER\" -c \"$AUR_HELPER -S --noconfirm brave-bin\"; "
+                        "RC=$?; rm -f /etc/sudoers.d/99-system-assistant-aur; exit $RC; "
                         "else "
                         "pacman -S --needed --noconfirm flatpak && "
                         "flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo && "
