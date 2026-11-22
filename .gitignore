@@ -13,3 +13,5 @@ deb-build/
 rpmbuild/
 *.rpm
 rpmbuild/
+*.rpm
+rpmbuild/
