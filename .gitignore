@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*$py.class
+build-dir/
+.flatpak-builder/
+repo/
+deb-build/
+*.deb
+*.flatpak
+*.pkg.tar.*
+*.bak.png
