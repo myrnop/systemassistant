@@ -149,6 +149,27 @@ def get_storage_str():
         return "Unknown"
 
 
+def detect_gpu_vendor():
+    try:
+        out = subprocess.check_output(["lspci"], text=True, stderr=subprocess.DEVNULL).lower()
+        gpu_lines = [
+            line for line in out.splitlines()
+            if "vga compatible controller" in line or "3d controller" in line
+        ]
+        joined = " ".join(gpu_lines)
+        if any(vm in joined for vm in ("virtio", "qxl", "vmware", "virtualbox", "bochs", "cirrus", "hyper-v")):
+            return "vm"
+        if "nvidia" in joined:
+            return "nvidia"
+        if "amd" in joined or "ati" in joined or "radeon" in joined:
+            return "amd"
+        if "intel" in joined:
+            return "intel"
+    except Exception:
+        pass
+    return "unknown"
+
+
 def get_hardware_info():
     model = "Linux PC"
     try:
@@ -234,6 +255,11 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         self.pretty_os = get_os_pretty_name()
         self.kernel = platform.release()
         self.hw = get_hardware_info()
+
+        display = Gdk.Display.get_default()
+        if display is not None:
+            icon_theme = Gtk.IconTheme.get_for_display(display)
+            icon_theme.add_search_path(os.path.dirname(os.path.abspath(__file__)))
 
         self.toast_overlay = Adw.ToastOverlay()
 
@@ -397,6 +423,25 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         apps_page = Adw.PreferencesPage()
 
         tweaks_group = Adw.PreferencesGroup(title="Desktop &amp; Codec Tweaks")
+        self.gpu_vendor = detect_gpu_vendor()
+        self.row_gpu = None
+        if self.gpu_vendor == "nvidia":
+            self.row_gpu = self.create_switch_row(
+                title="NVIDIA Proprietary Drivers",
+                subtitle="Install official NVIDIA GPU kernel modules and CUDA/NVENC support",
+                icon_name="video-display-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_gpu)
+        elif self.gpu_vendor in ("amd", "intel"):
+            self.row_gpu = self.create_switch_row(
+                title="Hardware Video Acceleration (VA-API)",
+                subtitle="Enable GPU hardware video decoding for browsers and media players",
+                icon_name="video-display-symbolic",
+                active=False,
+            )
+            tweaks_group.add(self.row_gpu)
+
         self.row_rpmfusion = None
         self.row_arch_pacman = None
         self.row_arch_yay = None
@@ -537,6 +582,14 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             active=False,
         )
         software_group.add(self.row_brave)
+
+        self.row_gaming = self.create_switch_row(
+            title="Gaming Essentials",
+            subtitle="Install Steam, GameMode, MangoHud, and ProtonUp-Qt",
+            icon_name="input-gaming-symbolic",
+            active=False,
+        )
+        software_group.add(self.row_gaming)
         apps_page.add(software_group)
 
         self.stack.add_titled_with_icon(
@@ -563,13 +616,42 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         btn_content.append(self.spinner)
         btn_content.append(self.btn_label)
 
+        actions_row = Gtk.Box(
+            orientation=Gtk.Orientation.HORIZONTAL,
+            spacing=8,
+            halign=Gtk.Align.CENTER,
+        )
+
+        self.preset_btn = Gtk.Button(
+            label="Recommended",
+            tooltip_text="Select recommended fresh-install updates, codecs, and desktop tweaks",
+        )
+        self.preset_btn.add_css_class("pill")
+        self.preset_btn.set_size_request(130, 42)
+        self.preset_btn.connect("clicked", self.on_preset_recommended_clicked)
+        actions_row.append(self.preset_btn)
+
         self.run_btn = Gtk.Button(child=btn_content)
         self.run_btn.add_css_class("suggested-action")
         self.run_btn.add_css_class("pill")
-        self.run_btn.set_halign(Gtk.Align.CENTER)
-        self.run_btn.set_size_request(220, 42)
+        self.run_btn.set_size_request(210, 42)
         self.run_btn.connect("clicked", self.on_run_clicked)
-        bottom_box.append(self.run_btn)
+        actions_row.append(self.run_btn)
+
+        self.clear_btn = Gtk.Button(
+            label="Clear All",
+            tooltip_text="Turn off all selected toggles",
+        )
+        self.clear_btn.add_css_class("pill")
+        self.clear_btn.set_size_request(110, 42)
+        self.clear_btn.connect("clicked", self.on_clear_all_clicked)
+        actions_row.append(self.clear_btn)
+
+        bottom_box.append(actions_row)
+
+        self.progress_bar = Gtk.ProgressBar(visible=False)
+        self.progress_bar.add_css_class("osd")
+        bottom_box.append(self.progress_bar)
 
         log_group = Adw.PreferencesGroup()
         self.log_expander = Adw.ExpanderRow(
@@ -625,6 +707,65 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
         self.refresh_detected_states()
 
+    def get_all_switch_rows(self):
+        rows = [
+            self.row_update,
+            self.row_flatpak_clean,
+            self.row_pkg_clean,
+            self.row_journal_clean,
+            self.row_pcspkr,
+            self.row_power_profiles,
+            self.row_autocpufreq,
+            self.row_gpu,
+            self.row_rpmfusion,
+            self.row_arch_pacman,
+            self.row_arch_yay,
+            self.row_arch_codecs_flatpak,
+            self.row_ubuntu_codecs,
+            self.row_ubuntu_flatpak,
+            self.row_ubuntu_firefox,
+            self.row_ubuntu_nala_appimage,
+            self.row_debian_repos,
+            self.row_adw_gtk3,
+            self.row_win_buttons,
+            self.row_tweaks,
+            self.row_dev_tools,
+            self.row_spotify,
+            self.row_brave,
+            self.row_gaming,
+        ]
+        return [r for r in rows if r is not None]
+
+    def on_clear_all_clicked(self, button):
+        for row in self.get_all_switch_rows():
+            row.set_active(False)
+        self.show_toast("Cleared all selected tasks")
+
+    def on_preset_recommended_clicked(self, button):
+        for row in self.get_all_switch_rows():
+            row.set_active(False)
+
+        recommended = [
+            self.row_update,
+            self.row_gpu,
+            self.row_adw_gtk3,
+            self.row_win_buttons,
+        ]
+        if self.distro == "fedora":
+            recommended.append(self.row_rpmfusion)
+        elif self.distro in ("ubuntu", "debian"):
+            recommended.extend([self.row_ubuntu_codecs, self.row_ubuntu_flatpak, self.row_debian_repos])
+        elif self.distro == "arch":
+            recommended.extend([self.row_arch_pacman, self.row_arch_codecs_flatpak])
+
+        count = 0
+        for row in recommended:
+            if row is not None:
+                row.set_active(True)
+                count += 1
+
+        self.show_toast(f"Selected {count} recommended fresh-install tasks")
+
     def on_refresh_stats_clicked(self, button):
         self.hw_labels["storage"].set_label(get_storage_str())
         self.hw_labels["uptime"].set_label(get_uptime_str())
@@ -634,6 +775,19 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
     def refresh_detected_states(self):
         def _detect():
             states = {
+                "gpu": (
+                    host_which("nvidia-smi")
+                    if self.gpu_vendor == "nvidia"
+                    else (
+                        host_which("vainfo")
+                        or host_file_exists("/usr/lib64/dri/radeonsi_drv_video.so")
+                        or host_file_exists("/usr/lib/dri/radeonsi_drv_video.so")
+                        or host_file_exists("/usr/lib/x86_64-linux-gnu/dri/radeonsi_drv_video.so")
+                        or host_file_exists("/usr/lib64/dri/iHD_drv_video.so")
+                        or host_file_exists("/usr/lib/dri/iHD_drv_video.so")
+                        or host_file_exists("/usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so")
+                    )
+                ),
                 "pcspkr": host_file_exists("/etc/modprobe.d/blacklist-pcspkr.conf"),
                 "power_profiles": host_which("powerprofilesctl"),
                 "autocpufreq": host_which("auto-cpufreq"),
@@ -678,6 +832,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 "dev_tools": host_which("git") and host_which("gh"),
                 "spotify": host_flatpak_installed("com.spotify.Client"),
                 "brave": bool(host_which("brave-browser") or host_which("brave") or host_flatpak_installed("com.brave.Browser")),
+                "gaming": bool((host_which("steam") or host_flatpak_installed("com.valvesoftware.Steam")) and host_which("gamemoderun")),
             }
 
             def _apply():
@@ -699,12 +854,21 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     states["autocpufreq"],
                     "Installed",
                 )
+                if self.row_gpu:
+                    gpu_sub = (
+                        "Install official NVIDIA GPU kernel modules and CUDA/NVENC support"
+                        if self.gpu_vendor == "nvidia"
+                        else "Enable GPU hardware video decoding for browsers and media players"
+                    )
+                    self.set_row_badge(
+                        self.row_gpu,
+                        gpu_sub,
+                        states["gpu"],
+                        "Installed",
+                    )
                 if self.row_rpmfusion:
                     self.set_row_badge(
                         self.row_rpmfusion,
-                    self.row_arch_pacman,
-                    self.row_arch_yay,
-                    self.row_arch_codecs_flatpak,
                         "Enable RPM Fusion Free/Nonfree, OpenH264, and media codecs",
                         states["rpmfusion"],
                         "Enabled",
@@ -821,6 +985,12 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     states["brave"],
                     "Installed",
                 )
+                self.set_row_badge(
+                    self.row_gaming,
+                    "Install Steam, GameMode, MangoHud, and ProtonUp-Qt",
+                    states["gaming"],
+                    "Installed",
+                )
                 return False
 
             GLib.idle_add(_apply)
@@ -851,7 +1021,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             application_name="System Assistant",
             application_icon="io.github.myrnop.SystemAssistant",
             developer_name="MyrnChef",
-            version="1.5.0",
+            version="1.6.0",
             comments="Made with ❤️ by MyrnChef\n\nA native GTK 4 and Libadwaita system maintenance and post-install setup utility for Linux desktops.",
             website="https://github.com/myrnop/systemassistant",
             issue_url="https://github.com/myrnop/systemassistant/issues",
@@ -905,6 +1075,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             "flatpak_clean": self.row_flatpak_clean.get_active(),
             "pkg_clean": self.row_pkg_clean.get_active(),
             "journal_clean": self.row_journal_clean.get_active(),
+            "gpu": self.row_gpu.get_active() if self.row_gpu else False,
             "pcspkr": self.row_pcspkr.get_active(),
             "power_profiles": self.row_power_profiles.get_active(),
             "autocpufreq": self.row_autocpufreq.get_active(),
@@ -923,6 +1094,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             "dev_tools": self.row_dev_tools.get_active(),
             "spotify": self.row_spotify.get_active(),
             "brave": self.row_brave.get_active(),
+            "gaming": self.row_gaming.get_active(),
         }
 
         if not any(tasks.values()):
@@ -934,6 +1106,16 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         self.btn_label.set_label("Running Tasks...")
         self.log_buffer.set_text("")
         self.log_expander.set_expanded(True)
+        self.progress_bar.set_visible(True)
+        self._pulse_active = True
+
+        def _pulse_progress():
+            if not getattr(self, "_pulse_active", False):
+                return False
+            self.progress_bar.pulse()
+            return True
+
+        GLib.timeout_add(120, _pulse_progress)
 
         threading.Thread(target=self.execute_tasks, args=(tasks,), daemon=True).start()
 
@@ -983,6 +1165,48 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
 
             if tasks["journal_clean"]:
                 root_commands.append("journalctl --vacuum-time=7d")
+
+            if tasks["gpu"]:
+                if self.gpu_vendor == "nvidia":
+                    if self.distro == "fedora":
+                        root_commands.append(
+                            "dnf install -y "
+                            "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm "
+                            "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && "
+                            "dnf install -y akmod-nvidia xorg-x11-drv-nvidia-cuda"
+                        )
+                    elif self.distro == "ubuntu":
+                        root_commands.append(
+                            "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                            "DEBIAN_FRONTEND=noninteractive apt-get install -y ubuntu-drivers-common && "
+                            "ubuntu-drivers autoinstall"
+                        )
+                    elif self.distro == "debian":
+                        root_commands.append(
+                            "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                            "DEBIAN_FRONTEND=noninteractive apt-get install -y linux-headers-$(uname -r) nvidia-driver"
+                        )
+                    elif self.distro == "arch":
+                        root_commands.append(
+                            "pacman -S --needed --noconfirm nvidia-dkms nvidia-utils lib32-nvidia-utils"
+                        )
+                elif self.gpu_vendor in ("amd", "intel"):
+                    if self.distro == "fedora":
+                        root_commands.append(
+                            "dnf install -y "
+                            "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm "
+                            "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && "
+                            "dnf swap -y mesa-va-drivers mesa-va-drivers-freeworld || true; "
+                            "dnf install -y libva-utils"
+                        )
+                    elif self.distro in ("ubuntu", "debian"):
+                        root_commands.append(
+                            "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                            "DEBIAN_FRONTEND=noninteractive apt-get install -y mesa-va-drivers intel-media-va-driver vainfo"
+                        )
+                    elif self.distro == "arch":
+                        pkg = "libva-mesa-driver lib32-libva-mesa-driver libva-utils" if self.gpu_vendor == "amd" else "intel-media-driver libva-utils"
+                        root_commands.append(f"pacman -S --needed --noconfirm {pkg}")
 
             if tasks["pcspkr"]:
                 root_commands.append("modprobe -r pcspkr snd_pcsp 2>/dev/null || true")
@@ -1140,6 +1364,27 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                         "pacman -S --noconfirm git github-cli python-pip curl wget"
                     )
 
+            if tasks["gaming"]:
+                if self.distro == "fedora":
+                    root_commands.append(
+                        "dnf install -y "
+                        "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm "
+                        "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm && "
+                        "dnf install -y steam gamemode mangohud"
+                    )
+                elif self.distro in ["ubuntu", "debian"]:
+                    root_commands.append(
+                        "dpkg --add-architecture i386 && "
+                        "DEBIAN_FRONTEND=noninteractive apt-get update && "
+                        "(DEBIAN_FRONTEND=noninteractive apt-get install -y steam-installer gamemode mangohud || "
+                        "DEBIAN_FRONTEND=noninteractive apt-get install -y steam gamemode mangohud)"
+                    )
+                elif self.distro == "arch":
+                    root_commands.append(
+                        "sed -i '/^#\\[multilib\\]/,/^#Include/ s/^#//' /etc/pacman.conf && "
+                        "pacman -Syu --needed --noconfirm steam gamemode lib32-gamemode mangohud lib32-mangohud"
+                    )
+
             if tasks["brave"] and not (host_which("brave-browser") or host_which("brave")):
                 if self.distro in ["ubuntu", "debian"]:
                     root_commands.append("DEBIAN_FRONTEND=noninteractive apt-get update")
@@ -1233,30 +1478,20 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 else:
                     self.log("Flatpak is not installed. Skipping Spotify.")
 
+            if tasks["gaming"]:
+                if host_which("flatpak"):
+                    self.run_cmd(
+                        ["flatpak", "install", "-y", "flathub", "net.davidotek.pupgui2"]
+                    )
+                else:
+                    self.log("Flatpak is not installed. Skipping ProtonUp-Qt.")
+
             self.log("\nAll selected tasks completed successfully!")
             self.show_toast("All selected tasks completed!")
 
             def _reset_and_refresh():
-                for row in (
-                    self.row_update,
-                    self.row_flatpak_clean,
-                    self.row_pkg_clean,
-                    self.row_journal_clean,
-                    self.row_pcspkr,
-                    self.row_power_profiles,
-                    self.row_autocpufreq,
-                    self.row_rpmfusion,
-                    self.row_ubuntu_codecs,
-                    self.row_ubuntu_flatpak,
-                    self.row_adw_gtk3,
-                    self.row_win_buttons,
-                    self.row_tweaks,
-                    self.row_dev_tools,
-                    self.row_spotify,
-                    self.row_brave,
-                ):
-                    if row is not None:
-                        row.set_active(False)
+                for row in self.get_all_switch_rows():
+                    row.set_active(False)
                 self.refresh_detected_states()
                 return False
 
@@ -1272,6 +1507,8 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             GLib.idle_add(self.reset_button)
 
     def reset_button(self):
+        self._pulse_active = False
+        self.progress_bar.set_visible(False)
         self.spinner.stop()
         self.run_btn.set_sensitive(True)
         self.btn_label.set_label("Run Selected Tasks")

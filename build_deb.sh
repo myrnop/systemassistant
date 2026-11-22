@@ -2,7 +2,7 @@
 set -e
 
 PKG_NAME="system-assistant"
-VERSION="1.5.0"
+VERSION="1.6.0"
 APP_ID="io.github.myrnop.SystemAssistant"
 BUILD_ROOT="deb-build/${PKG_NAME}_${VERSION}_all"
 

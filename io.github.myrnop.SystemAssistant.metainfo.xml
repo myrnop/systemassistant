@@ -23,6 +23,17 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.6.0" date="2026-11-22">
+      <description>
+        <p>Added automatic GPU driver/VA-API setup, one-click presets, Gaming Essentials, and live task progress:</p>
+        <ul>
+          <li>Automatic GPU vendor detection with proprietary NVIDIA driver or open-source VA-API setup</li>
+          <li>One-click Recommended preset and Clear All buttons</li>
+          <li>Gaming Essentials toggle (Steam, GameMode, MangoHud, and ProtonUp-Qt)</li>
+          <li>Live task progress bar and refreshed application icon</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.3.0" date="2026-11-21">
       <description>
         <p>Added live system status detection, clipboard log export, and Flathub branding metadata:</p>

@@ -1,6 +1,6 @@
 # Maintainer: MyrnChef <myrnop@users.noreply.github.com>
 pkgname=system-assistant
-pkgver=1.5.0
+pkgver=1.6.0
 pkgrel=1
 pkgdesc="Modern GTK4 & Libadwaita system maintenance and post-install utility"
 arch=('any')

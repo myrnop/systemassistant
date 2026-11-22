@@ -1,5 +1,5 @@
 Name:           system-assistant
-Version:        1.5.0
+Version:        1.6.0
 Release:        1%{?dist}
 Summary:        Modern GTK4 & Libadwaita system maintenance and post-install utility
 License:        GPL-3.0-or-later
@@ -46,5 +46,8 @@ install -m 0644 %{_sourcedir}/LICENSE %{buildroot}%{_licensedir}/%{name}/LICENSE
 %{_metainfodir}/io.github.myrnop.SystemAssistant.metainfo.xml
 
 %changelog
+* Sun Nov 22 2026 MyrnChef <myrnop@users.noreply.github.com> - 1.6.0-1
+- Release v1.6.0 with GPU driver/VA-API detection, Recommended preset, Gaming Essentials, and live task progress bar
+
 * Sun Nov 22 2026 MyrnChef <myrnop@users.noreply.github.com> - 1.5.0-1
 - Release v1.5.0 with Fedora, Ubuntu/Debian, and Arch Linux support
