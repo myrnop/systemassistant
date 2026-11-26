@@ -1,12 +1,12 @@
 # Maintainer: MyrnChef <myrnop@users.noreply.github.com>
 pkgname=system-assistant
-pkgver=1.6.0
+pkgver=1.7.0
 pkgrel=1
 pkgdesc="Modern GTK4 & Libadwaita system maintenance and post-install utility"
 arch=('any')
 url="https://github.com/myrnop/systemassistant"
 license=('GPL-3.0-or-later')
-depends=('python' 'python-gobject' 'gtk4' 'libadwaita' 'polkit')
+depends=('python' 'python-gobject' 'gtk4' 'libadwaita' 'polkit' 'pciutils')
 source=("git+https://github.com/myrnop/systemassistant.git#tag=v${pkgver}")
 sha256sums=('SKIP')
 

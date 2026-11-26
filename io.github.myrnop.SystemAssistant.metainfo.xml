@@ -23,6 +23,17 @@
     </screenshot>
   </screenshots>
   <releases>
+    <release version="1.7.0" date="2026-11-26">
+      <description>
+        <p>Added GNOME experience and battery tweaks, light/dark theme awareness, and Wayland thread-safety fixes:</p>
+        <ul>
+          <li>Added Touchpad Tap-to-Click, GNOME Night Light, and Top Bar Battery Percentage toggles</li>
+          <li>Included GNOME experience tweaks in the one-click Recommended preset</li>
+          <li>Automatically select light or dark adw-gtk3 theme based on system color scheme</li>
+          <li>Fixed Wayland thread safety for status refreshes and root privilege detection for GPU and gaming tasks</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.6.0" date="2026-11-22">
       <description>
         <p>Added automatic GPU driver/VA-API setup, one-click presets, Gaming Essentials, and live task progress:</p>

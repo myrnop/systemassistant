@@ -1,5 +1,5 @@
 Name:           system-assistant
-Version:        1.6.0
+Version:        1.7.0
 Release:        1%{?dist}
 Summary:        Modern GTK4 & Libadwaita system maintenance and post-install utility
 License:        GPL-3.0-or-later
@@ -11,6 +11,7 @@ Requires:       python3-gobject
 Requires:       gtk4
 Requires:       libadwaita
 Requires:       polkit
+Requires:       pciutils
 
 %description
 A native GTK4 and Libadwaita utility to update system packages and Flatpaks,
@@ -46,6 +47,9 @@ install -m 0644 %{_sourcedir}/LICENSE %{buildroot}%{_licensedir}/%{name}/LICENSE
 %{_metainfodir}/io.github.myrnop.SystemAssistant.metainfo.xml
 
 %changelog
+* Thu Nov 26 2026 MyrnChef <myrnop@users.noreply.github.com> - 1.7.0-1
+- Release v1.7.0 with GNOME experience tweaks (tap-to-click, Night Light, battery percentage), light/dark adw-gtk3 theme detection, and Wayland thread-safety fixes
+
 * Sun Nov 22 2026 MyrnChef <myrnop@users.noreply.github.com> - 1.6.0-1
 - Release v1.6.0 with GPU driver/VA-API detection, Recommended preset, Gaming Essentials, and live task progress bar
 

@@ -544,6 +544,32 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
         tweaks_group.add(self.row_win_buttons)
         apps_page.add(tweaks_group)
 
+        gnome_qol_group = Adw.PreferencesGroup(title="GNOME Experience &amp; Battery")
+        self.row_tap_to_click = self.create_switch_row(
+            title="Touchpad Tap-to-Click",
+            subtitle="Enable tapping the laptop touchpad to left-click",
+            icon_name="input-touchpad-symbolic",
+            active=False,
+        )
+        gnome_qol_group.add(self.row_tap_to_click)
+
+        self.row_night_light = self.create_switch_row(
+            title="GNOME Night Light",
+            subtitle="Enable automatic warm screen color temperature after sunset",
+            icon_name="weather-clear-night-symbolic",
+            active=False,
+        )
+        gnome_qol_group.add(self.row_night_light)
+
+        self.row_battery_pct = self.create_switch_row(
+            title="Top Bar Battery Percentage",
+            subtitle="Display exact battery percentage next to the top bar indicator",
+            icon_name="battery-full-symbolic",
+            active=False,
+        )
+        gnome_qol_group.add(self.row_battery_pct)
+        apps_page.add(gnome_qol_group)
+
         software_group = Adw.PreferencesGroup(title="Essential Applications &amp; Tools")
         self.row_tweaks = self.create_switch_row(
             title="GNOME Tweaks &amp; Extensions",
@@ -728,6 +754,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             self.row_debian_repos,
             self.row_adw_gtk3,
             self.row_win_buttons,
+            self.row_tap_to_click,
+            self.row_night_light,
+            self.row_battery_pct,
             self.row_tweaks,
             self.row_dev_tools,
             self.row_spotify,
@@ -750,6 +779,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             self.row_gpu,
             self.row_adw_gtk3,
             self.row_win_buttons,
+            self.row_tap_to_click,
+            self.row_night_light,
+            self.row_battery_pct,
         ]
         if self.distro == "fedora":
             recommended.append(self.row_rpmfusion)
@@ -828,6 +860,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 ),
                 "adw_gtk3": "adw-gtk3" in host_gsetting_get("org.gnome.desktop.interface", "gtk-theme"),
                 "win_buttons": "minimize" in host_gsetting_get("org.gnome.desktop.wm.preferences", "button-layout"),
+                "tap_to_click": host_gsetting_get("org.gnome.desktop.peripherals.touchpad", "tap-to-click") == "true",
+                "night_light": host_gsetting_get("org.gnome.settings-daemon.plugins.color", "night-light-enabled") == "true",
+                "battery_pct": host_gsetting_get("org.gnome.desktop.interface", "show-battery-percentage") == "true",
                 "tweaks": host_which("gnome-tweaks"),
                 "dev_tools": host_which("git") and host_which("gh"),
                 "spotify": host_flatpak_installed("com.spotify.Client"),
@@ -942,6 +977,24 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     "Active",
                 )
                 self.set_row_badge(
+                    self.row_tap_to_click,
+                    "Enable tapping the laptop touchpad to left-click",
+                    states["tap_to_click"],
+                    "Active",
+                )
+                self.set_row_badge(
+                    self.row_night_light,
+                    "Enable automatic warm screen color temperature after sunset",
+                    states["night_light"],
+                    "Active",
+                )
+                self.set_row_badge(
+                    self.row_battery_pct,
+                    "Display exact battery percentage next to the top bar indicator",
+                    states["battery_pct"],
+                    "Active",
+                )
+                self.set_row_badge(
                     self.row_tweaks,
                     "Install gnome-tweaks and Extension Manager",
                     states["tweaks"],
@@ -959,20 +1012,6 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                     states["spotify"],
                     "Installed",
                 )
-                if self.row_ubuntu_codecs:
-                    self.set_row_badge(
-                        self.row_ubuntu_codecs,
-                        "Install multimedia codecs, H.264/AAC playback, and core fonts",
-                        states["ubuntu_codecs"],
-                        "Installed",
-                    )
-                if self.row_ubuntu_flatpak:
-                    self.set_row_badge(
-                        self.row_ubuntu_flatpak,
-                        "Install Flatpak and enable the Flathub app repository",
-                        states["ubuntu_flatpak"],
-                        "Active",
-                    )
                 if self.distro in ("ubuntu", "debian"):
                     brave_sub_applied = "Configure Brave APT repository and install browser"
                 elif self.distro == "arch":
@@ -1021,7 +1060,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             application_name="System Assistant",
             application_icon="io.github.myrnop.SystemAssistant",
             developer_name="MyrnChef",
-            version="1.6.0",
+            version="1.7.0",
             comments="Made with ❤️ by MyrnChef\n\nA native GTK 4 and Libadwaita system maintenance and post-install setup utility for Linux desktops.",
             website="https://github.com/myrnop/systemassistant",
             issue_url="https://github.com/myrnop/systemassistant/issues",
@@ -1090,6 +1129,9 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             "debian_repos": self.row_debian_repos.get_active() if self.row_debian_repos else False,
             "adw_gtk3": self.row_adw_gtk3.get_active(),
             "win_buttons": self.row_win_buttons.get_active(),
+            "tap_to_click": self.row_tap_to_click.get_active(),
+            "night_light": self.row_night_light.get_active(),
+            "battery_pct": self.row_battery_pct.get_active(),
             "tweaks": self.row_tweaks.get_active(),
             "dev_tools": self.row_dev_tools.get_active(),
             "spotify": self.row_spotify.get_active(),
@@ -1125,6 +1167,7 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 tasks["update"]
                 or tasks["pkg_clean"]
                 or tasks["journal_clean"]
+                or tasks["gpu"]
                 or tasks["pcspkr"]
                 or tasks["power_profiles"]
                 or tasks["autocpufreq"]
@@ -1140,7 +1183,8 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                 or (tasks["adw_gtk3"] and self.distro in ["fedora", "arch"])
                 or (tasks["tweaks"] and not host_which("gnome-tweaks"))
                 or tasks["dev_tools"]
-                or (tasks["brave"] and not host_which("brave-browser"))
+                or tasks["gaming"]
+                or (tasks["brave"] and not (host_which("brave-browser") or host_which("brave")))
             )
 
             root_commands = []
@@ -1443,13 +1487,15 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                         ]
                     )
                 if host_which("gsettings"):
+                    color_scheme = host_gsetting_get("org.gnome.desktop.interface", "color-scheme")
+                    gtk_theme = "adw-gtk3-dark" if "dark" in color_scheme else "adw-gtk3"
                     self.run_cmd(
                         [
                             "gsettings",
                             "set",
                             "org.gnome.desktop.interface",
                             "gtk-theme",
-                            "adw-gtk3-dark",
+                            gtk_theme,
                         ]
                     )
 
@@ -1461,6 +1507,39 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
                         "org.gnome.desktop.wm.preferences",
                         "button-layout",
                         ":minimize,maximize,close",
+                    ]
+                )
+
+            if tasks["tap_to_click"] and host_which("gsettings"):
+                self.run_cmd(
+                    [
+                        "gsettings",
+                        "set",
+                        "org.gnome.desktop.peripherals.touchpad",
+                        "tap-to-click",
+                        "true",
+                    ]
+                )
+
+            if tasks["night_light"] and host_which("gsettings"):
+                self.run_cmd(
+                    [
+                        "gsettings",
+                        "set",
+                        "org.gnome.settings-daemon.plugins.color",
+                        "night-light-enabled",
+                        "true",
+                    ]
+                )
+
+            if tasks["battery_pct"] and host_which("gsettings"):
+                self.run_cmd(
+                    [
+                        "gsettings",
+                        "set",
+                        "org.gnome.desktop.interface",
+                        "show-battery-percentage",
+                        "true",
                     ]
                 )
 
@@ -1489,16 +1568,18 @@ class SystemAssistantWindow(Adw.ApplicationWindow):
             self.log("\nAll selected tasks completed successfully!")
             self.show_toast("All selected tasks completed!")
 
+            storage_str = get_storage_str()
+            uptime_str = get_uptime_str()
+
             def _reset_and_refresh():
                 for row in self.get_all_switch_rows():
                     row.set_active(False)
+                self.hw_labels["storage"].set_label(storage_str)
+                self.hw_labels["uptime"].set_label(uptime_str)
                 self.refresh_detected_states()
                 return False
 
             GLib.idle_add(_reset_and_refresh)
-            self.hw_labels["storage"].set_label(get_storage_str())
-            self.hw_labels["uptime"].set_label(get_uptime_str())
-            self.refresh_detected_states()
 
         except subprocess.CalledProcessError as e:
             self.log(f"\nError: Command failed with exit code {e.returncode}")
